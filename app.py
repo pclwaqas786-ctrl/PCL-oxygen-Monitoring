@@ -1,3 +1,6 @@
+from datetime import datetime
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 import streamlit as st
 
 st.set_page_config(
@@ -6,6 +9,25 @@ st.set_page_config(
     layout="wide",
 )
 
+# --- GOOGLE SHEETS CONNECTION SETUP ---
+
+
+def log_to_google_sheet(timestamp, item_name, val, status):
+  try:
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+        "credentials.json", scope
+    )
+    client = gspread.authorize(creds)
+    sheet = client.open("CCR_Oxygen_Logs").sheet1
+    sheet.append_row([timestamp, item_name, val, status])
+  except Exception as e:
+    print(f"Google Sheet Logging Error: {e}")
+
+
 # --- SESSION STATE INITIALIZATION ---
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
@@ -13,29 +35,34 @@ if "logged_in" not in st.session_state:
 if "monitoring_points" not in st.session_state:
   st.session_state.monitoring_points = [
       {"name": "CR-1586 (Top/Tail)", "val": 449.0},
-      {"name": "CR-1602 (Top End)", "val": 107.0},
+      {"name": "CR-1601 (Top End)", "val": 107.0},
       {"name": "CR-1603 (Top End)", "val": 577.0},
       {"name": "Shaft Furnace (SF-6)", "val": 292.0},
-      {"name": "Tundish-03 Sample", "val": 512.0},
+      {"name": "Tundish-Sample", "val": 512.0},
   ]
 
+# Master Limits (Customizable via Admin Panel)
 if "limits" not in st.session_state:
   st.session_state.limits = {
+      "min_limit": 200.0,
       "normal_min": 200.0,
       "normal_max": 400.0,
-      "warning_max": 600.0,
+      "caution_max": 600.0,
       "high_alert": 600.0,
   }
 
 # --- HEADER TITLE ---
 st.title("🏭 CCR Pakistan Cable (CCR Plant) - Oxygen & Coil Monitoring")
-st.markdown("Real-time oxygen tracking system with role-based access.")
+st.markdown(
+    "Real-time oxygen tracking system with customizable master limits and 24/7"
+    " Google Sheets logging."
+)
 
 # --- SIDEBAR: AUTHENTICATION & CONTROLS ---
 st.sidebar.header("🔐 User / Admin Panel")
 
 if not st.session_state.logged_in:
-  st.sidebar.info("Viewing as Normal User (Read-Only Mode)")
+  st.sidebar.info("Viewing as Normal User (Quick value updates enabled)")
   admin_pass = st.sidebar.text_input("Enter Admin Password", type="password")
   if st.sidebar.button("Login as Admin"):
     if admin_pass == "admin123":  # Aap yahan apna password change kar sakte hain
@@ -49,21 +76,56 @@ else:
     st.session_state.logged_in = False
     st.rerun()
 
-# --- ADMIN-ONLY SETTINGS & MANAGEMENT ---
+# --- STATUS FUNCTION WITH CUSTOM COLORS ---
+any_high_alert = False
+
+
+def get_oxygen_status(val, lim):
+  global any_high_alert
+  # Min or High Alert -> Red
+  if val < lim["min_limit"] or val > lim["high_alert"]:
+    any_high_alert = True
+    return (
+        "🔴 CRITICAL ALERT (Red)",
+        "#ff4b4b",
+        "Oxygen level out of safe limits!",
+    )
+  # Normal Range -> Green
+  elif lim["normal_min"] <= val <= lim["normal_max"]:
+    return "🟢 SAFE ZONE (Green)", "#09ab3b", "Normal safe range."
+  # Caution Range -> Orange / Yellow
+  elif lim["normal_max"] < val <= lim["caution_max"]:
+    return "🟠 CAUTION ZONE (Orange)", "#ff8800", "Elevated range, monitor closely."
+  else:
+    any_high_alert = True
+    return (
+        "🔴 CRITICAL ALERT (Red)",
+        "#ff4b4b",
+        "Oxygen level out of safe limits!",
+    )
+
+
+# --- ADMIN-ONLY MASTER SETTINGS & MANAGEMENT ---
 if st.session_state.logged_in:
   st.sidebar.markdown("---")
-  st.sidebar.subheader("⚙️ Admin Settings: Limits")
+  st.sidebar.subheader("⚙️ Admin: Master Limits Configuration")
+  st.session_state.limits["min_limit"] = st.sidebar.number_input(
+      "Minimum Limit (Below this = Red)",
+      value=st.session_state.limits["min_limit"],
+  )
   st.session_state.limits["normal_min"] = st.sidebar.number_input(
-      "Normal Min", value=st.session_state.limits["normal_min"]
+      "Normal Range Start", value=st.session_state.limits["normal_min"]
   )
   st.session_state.limits["normal_max"] = st.sidebar.number_input(
-      "Normal Max", value=st.session_state.limits["normal_max"]
+      "Normal Range End (Green)", value=st.session_state.limits["normal_max"]
   )
-  st.session_state.limits["warning_max"] = st.sidebar.number_input(
-      "Caution Max", value=st.session_state.limits["warning_max"]
+  st.session_state.limits["caution_max"] = st.sidebar.number_input(
+      "Caution Max (Up to this = Orange)",
+      value=st.session_state.limits["caution_max"],
   )
   st.session_state.limits["high_alert"] = st.sidebar.number_input(
-      "High Alert Limit", value=st.session_state.limits["high_alert"]
+      "High Alert Limit (Above this = Red)",
+      value=st.session_state.limits["high_alert"],
   )
 
   st.sidebar.markdown("---")
@@ -83,46 +145,35 @@ if st.session_state.logged_in:
           f"N_{i}", item["name"], key=f"edit_name_{i}"
       )
     with cols[1]:
-      item["val"] = st.number_input(
+      new_val = st.number_input(
           f"V_{i}", value=float(item["val"]), key=f"edit_val_{i}"
       )
+      if new_val != item["val"]:
+        item["val"] = new_val
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        status_text, _, _ = get_oxygen_status(
+            new_val, st.session_state.limits
+        )
+        log_to_google_sheet(
+            current_time, item["name"], new_val, status_text
+        )
+
     if st.sidebar.button(f"Del {item['name']}", key=f"del_{i}"):
       st.session_state.monitoring_points.pop(i)
       st.rerun()
 else:
-  # Normal User can only update current values quickly from sidebar without deleting points
+  # Normal User Value Updates with Google Sheets Logging
   st.sidebar.markdown("---")
   st.sidebar.subheader("⚡ Quick Value Update")
   for i, item in enumerate(st.session_state.monitoring_points):
-    item["val"] = st.sidebar.number_input(
+    new_val = st.sidebar.number_input(
         f"{item['name']}", value=float(item["val"]), key=f"user_val_{i}"
     )
-
-
-# --- STATUS FUNCTION ---
-any_high_alert = False
-
-
-def get_oxygen_status(val, lim):
-  global any_high_alert
-  if val < lim["normal_min"] or val > lim["high_alert"]:
-    any_high_alert = True
-    return (
-        "🔴 CRITICAL ALERT",
-        "#ff4b4b",
-        "Oxygen level out of safe limits!",
-    )
-  elif lim["normal_min"] <= val <= lim["normal_max"]:
-    return "🟢 SAFE ZONE", "#09ab3b", "Normal safe range."
-  elif lim["normal_max"] < val <= lim["warning_max"]:
-    return "🟡 CAUTION (Yellow Zone)", "#f6b93b", "Elevated range."
-  else:
-    any_high_alert = True
-    return (
-        "🔴 CRITICAL ALERT",
-        "#ff4b4b",
-        "Oxygen level out of safe limits!",
-    )
+    if new_val != item["val"]:
+      item["val"] = new_val
+      current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      status_text, _, _ = get_oxygen_status(new_val, st.session_state.limits)
+      log_to_google_sheet(current_time, item["name"], new_val, status_text)
 
 
 # --- MAIN DISPLAY CARDS ---
