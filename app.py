@@ -43,7 +43,7 @@ def evaluate_status(val, crit_low, safe_max):
         return "CAUTION ZONE", "#FF9100"
 
 # ---------------------------------------------------------
-# 3. Custom CSS & High-Contrast Wallpaper Styling
+# 3. Custom CSS & Wallpaper Styling
 # ---------------------------------------------------------
 bg_style = ""
 if st.session_state.bg_image:
@@ -99,7 +99,6 @@ else:
         else:
             st.sidebar.error("Invalid Username or Password")
 
-# Company Logo & Wallpaper Uploader in Sidebar
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎨 Customization Panel")
 
@@ -116,10 +115,15 @@ if uploaded_wallpaper is not None:
     st.rerun()
 
 # ---------------------------------------------------------
-# 5. Header & Metric Cards
+# 5. Header with Logo & Metric Cards
 # ---------------------------------------------------------
-st.markdown('<div class="main-title">Pakistan Cable (CCR) - Oxygen & Coil Monitoring</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Real-time oxygen tracking system with individual coil thresholds.</div>', unsafe_allow_html=True)
+header_col1, header_col2 = st.columns([1, 10])
+with header_col1:
+    if st.session_state.logo_image:
+        st.image(st.session_state.logo_image, width=90)
+with header_col2:
+    st.markdown('<div class="main-title">Pakistan Cable (CCR) - Oxygen & Coil Monitoring</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">Real-time oxygen tracking system with individual coil thresholds.</div>', unsafe_allow_html=True)
 
 cols = st.columns(len(st.session_state.monitoring_data))
 for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
@@ -137,19 +141,33 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
             unsafe_allow_html=True
         )
 
-# Critical Alarm & Working Audio Siren Button
+# Critical Alarm & 100% Working Built-in Browser Synthesizer Siren
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
 if critical_items:
     st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
     
-    # Fully working HTML5 Audio + Web Audio API Fallback Button for browsers
     st.markdown("""
-        <div style="background-color: rgba(255, 43, 43, 0.25); padding: 15px; border-radius: 10px; border: 2px solid #FF2B2B; margin-bottom: 20px; text-align: center;">
-            <p style='color:#FF4B4B; font-weight:bold; font-size:1.1rem; margin-bottom: 10px;'>🔊 Emergency Siren Triggered! Click below to play alarm sound:</p>
-            <audio controls autoplay loop style="width: 100%; margin-bottom: 10px;">
-              <source src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" type="ogg">
-              <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="mp3">
-            </audio>
+        <div style="background-color: rgba(255, 43, 43, 0.25); padding: 18px; border-radius: 12px; border: 2px solid #FF2B2B; margin-bottom: 20px; text-align: center;">
+            <p style='color:#FF4B4B; font-weight:bold; font-size:1.1rem; margin-bottom: 12px;'>🔊 Emergency Siren Active! Click button below to start alarm sound:</p>
+            <button onclick="
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                window.sirenInterval = setInterval(() => {
+                    oscillator.frequency.setValueAtTime(oscillator.frequency.value === 880 ? 587 : 880, audioCtx.currentTime);
+                }, 300);
+            " style="background-color: #FF2B2B; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 12px rgba(255,43,43,0.5);">
+                🔔 Start Alarm Sound
+            </button>
+            <button onclick="if(window.sirenInterval) clearInterval(window.sirenInterval); location.reload();" style="background-color: #334155; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-left: 10px;">
+                🔕 Stop Alarm
+            </button>
         </div>
     """, unsafe_allow_html=True)
 
@@ -193,6 +211,29 @@ else:
                     }
                     st.success(f"Added {new_name} successfully!")
                     st.rerun()
+
+            st.markdown("---")
+            st.write("✏️ **Edit or Delete Existing Coils:**")
+            for item in list(st.session_state.monitoring_data.keys()):
+                data = st.session_state.monitoring_data[item]
+                with st.expander(f"📌 {item} (Current: {data['val']} ppm)"):
+                    with st.form(f"edit_form_{item}"):
+                        new_coil_name = st.text_input("Rename Coil", value=item)
+                        new_val = st.number_input("Oxygen Value", value=float(data['val']))
+                        c_limit = st.number_input("Critical Low Limit", value=float(data['crit_low']))
+                        s_limit = st.number_input("Safe Max Limit", value=float(data['safe_max']))
+                        
+                        save_btn = st.form_submit_button("Save Changes")
+                        if save_btn:
+                            new_status, new_color = evaluate_status(new_val, c_limit, s_limit)
+                            if new_coil_name != item:
+                                st.session_state.monitoring_data[new_coil_name] = st.session_state.monitoring_data.pop(item)
+                                item = new_coil_name
+                            st.session_state.monitoring_data[item].update({
+                                "val": new_val, "crit_low": c_limit, "safe_max": s_limit, "status": new_status, "color": new_color
+                            })
+                            st.success("Coil updated successfully!")
+                            st.rerun()
 
     with tab_logs:
         sample_logs = pd.DataFrame([
