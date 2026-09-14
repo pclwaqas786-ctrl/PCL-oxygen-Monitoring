@@ -44,7 +44,7 @@ if "store" not in st.session_state:
           {
               "name": "Coil",
               "coil_prefix": "",
-              "coil_num": "2002",
+              "coil_num": "",
               "val": 249.01,
               "min": 200.0,
               "norm_min": 200.0,
