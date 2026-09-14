@@ -27,9 +27,9 @@ if "user_role" not in st.session_state:
 
 if "monitoring_data" not in st.session_state:
     st.session_state.monitoring_data = {
-        "CR-2002 (Top/Tail)": {"val": 249.0, "status": "SAFE ZONE", "color": "#00E676", "crit_low": 150.0, "safe_max": 500.0},
-        "CR-1605 (Top End)": {"val": 107.0, "status": "CRITICAL LOW ALERT", "color": "#FF2B2B", "crit_low": 150.0, "safe_max": 500.0},
-        "CR-2486 (Top End)": {"val": 577.0, "status": "CAUTION ZONE", "color": "#FF9100", "crit_low": 150.0, "safe_max": 500.0},
+        "Coil 1572": {"val": 249.0, "status": "SAFE ZONE", "color": "#00E676", "crit_low": 150.0, "safe_max": 500.0},
+        "Coil 1573": {"val": 107.0, "status": "CRITICAL LOW ALERT", "color": "#FF2B2B", "crit_low": 150.0, "safe_max": 500.0},
+        "Coil 1574": {"val": 577.0, "status": "CAUTION ZONE", "color": "#FF9100", "crit_low": 150.0, "safe_max": 500.0},
         "Shaft Furnace (SF-6)": {"val": 310.0, "status": "SAFE ZONE", "color": "#00E676", "crit_low": 150.0, "safe_max": 500.0},
         "Tundish-Sample": {"val": 180.0, "status": "SAFE ZONE", "color": "#00E676", "crit_low": 150.0, "safe_max": 500.0}
     }
@@ -43,30 +43,31 @@ def evaluate_status(val, crit_low, safe_max):
         return "CAUTION ZONE", "#FF9100"
 
 # ---------------------------------------------------------
-# 3. Custom CSS & Wallpaper Styling
+# 3. Custom CSS & Readability Overlay Styling
 # ---------------------------------------------------------
-custom_css = """
-<style>
-.main-title { font-size: 2.2rem; font-weight: 800; color: #1E293B; margin-bottom: 0px; }
-.sub-title { font-size: 1rem; color: #64748B; margin-bottom: 25px; }
-.metric-card { background-color: #1E1E1E; border-radius: 12px; padding: 20px; text-align: center; color: white; box-shadow: 0px 4px 12px rgba(0,0,0,0.15); margin-bottom: 15px; }
-.metric-value { font-size: 2.5rem; font-weight: bold; margin: 10px 0; }
-.status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
-</style>
-"""
-
+bg_style = ""
 if st.session_state.bg_image:
-    bg_css = f"""
-    <style>
+    bg_style = f"""
     .stApp {{
-        background-image: url("{st.session_state.bg_image}");
+        background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{st.session_state.bg_image}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
     }}
-    </style>
     """
-    st.markdown(bg_css, unsafe_allow_html=True)
+else:
+    bg_style = ".stApp { background-color: #0F172A; }"
+
+custom_css = f"""
+<style>
+{bg_style}
+.main-title {{ font-size: 2.2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
+.sub-title {{ font-size: 1rem; color: #94A3B8; margin-bottom: 25px; }}
+.metric-card {{ background-color: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; text-align: center; color: white; box-shadow: 0px 4px 12px rgba(0,0,0,0.3); margin-bottom: 15px; }}
+.metric-value {{ font-size: 2.5rem; font-weight: bold; margin: 10px 0; }}
+.status-badge {{ padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }}
+</style>
+"""
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
@@ -87,7 +88,7 @@ else:
 
     selected_shift = None
     if username_input == "admin":
-        st.sidebar.info("ℹ️ **Admin Mode:** Shift selection hidden. Full monitoring & settings access.")
+        st.sidebar.info("ℹ️ **Admin Mode:** Full management access.")
     else:
         selected_shift = st.sidebar.selectbox(
             "Select Duty Shift",
@@ -126,14 +127,14 @@ if st.session_state.logged_in_user:
     uploaded_wallpaper = st.sidebar.file_uploader("Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_uploader")
     if uploaded_wallpaper is not None:
         st.session_state.bg_image = f"data:image/png;base64,{base64.b64encode(uploaded_wallpaper.read()).decode()}"
-        st.sidebar.success("Background Wallpaper updated!")
+        st.sidebar.success("Wallpaper updated!")
         st.rerun()
 
 # ---------------------------------------------------------
 # 5. Header & Metric Cards
 # ---------------------------------------------------------
 st.markdown('<div class="main-title">Pakistan Cable (CCR)- Oxygen & Coil Monitoring</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Real-time oxygen tracking system with individual item thresholds and 24/7 Google Sheets logging.</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Real-time oxygen tracking system with individual coil thresholds and 24/7 logging.</div>', unsafe_allow_html=True)
 
 cols = st.columns(len(st.session_state.monitoring_data))
 for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
@@ -141,9 +142,9 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
         st.markdown(
             f"""
             <div class="metric-card">
-                <div style="font-size:0.9rem; font-weight:600; color:#A1A1AA;">{item}</div>
+                <div style="font-size:0.9rem; font-weight:600; color:#E2E8F0;">{item}</div>
                 <div class="metric-value" style="color:{data['color']};">{data['val']} <span style="font-size:1rem;">ppm</span></div>
-                <div class="status-badge" style="background-color:{data['color']}22; color:{data['color']}; border: 1px solid {data['color']};">
+                <div class="status-badge" style="background-color:{data['color']}33; color:{data['color']}; border: 1px solid {data['color']};">
                     ● {data['status']}
                 </div>
             </div>
@@ -157,12 +158,12 @@ if critical_items:
     if st.session_state.logged_in_user:
         st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
         
-        # Working audio stream link for emergency siren beep
+        # Reliable working audio siren embed
         st.markdown("""
-            <p style='color:red; font-weight:bold;'>🔊 Emergency Siren Active! Click play below:</p>
-            <audio controls autoplay loop>
-              <source src="https://upload.wikimedia.org/wikipedia/commons/b/b3/Alarm_clock_ringing_bell.ogg" type="ogg">
-              <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" type="mp3">
+            <p style='color:#FF4B4B; font-weight:bold; font-size:1.1rem;'>🔊 Emergency Siren Active! Play audio below:</p>
+            <audio controls autoplay loop style="width: 100%;">
+              <source src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" type="ogg">
+              <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="mp3">
               Your browser does not support the audio element.
             </audio>
         """, unsafe_allow_html=True)
@@ -181,21 +182,21 @@ if not st.session_state.logged_in_user:
 else:
     tab_update, tab_settings, tab_users, tab_logs = st.tabs([
         "⚡ Update Values (Operators)", 
-        "⚙️ Edit Values & Thresholds (Admin)", 
+        "⚙️ Edit Coils & Thresholds (Admin)", 
         "👥 User Management", 
-        "📊 Google Sheets Log History"
+        "📊 Audit Log History"
     ])
 
     with tab_update:
         if st.session_state.user_role == "admin":
-            st.info("🚫 **Admin Notice:** Admin Manager cannot enter shift data. Use the 'Edit Values & Thresholds' tab.")
+            st.info("🚫 **Admin Notice:** Admin Manager cannot enter shift data. Use the 'Edit Coils & Thresholds' tab to manage items.")
         else:
             st.write(f"**Active Operator:** `{st.session_state.logged_in_user}`")
             with st.form("operator_entry_form"):
-                selected_item = st.selectbox("Select Monitoring Point", list(st.session_state.monitoring_data.keys()))
-                new_val = st.number_input("Oxygen Value (ppm)", min_value=0.0, max_value=2000.0, value=float(st.session_state.monitoring_data[selected_item]['val']), step=0.1)
+                selected_item = st.selectbox("Select Coil / Monitoring Point", list(st.session_state.monitoring_data.keys()))
+                new_val = st.number_input("Oxygen Value (ppm)", min_value=0.0, max_value=2000.0, value=float(st.session_state.monitoring_data[selected_item]['val']), step=1.0, format="%.0f")
                 
-                submit_btn = st.form_submit_button("Submit & Sync to Google Sheets")
+                submit_btn = st.form_submit_button("Submit & Sync Record")
                 if submit_btn:
                     c_low = st.session_state.monitoring_data[selected_item]['crit_low']
                     s_max = st.session_state.monitoring_data[selected_item]['safe_max']
@@ -207,34 +208,65 @@ else:
 
     with tab_settings:
         if st.session_state.user_role != "admin":
-            st.warning("🔒 **Restricted Area:** Only Admin Manager can modify sensor thresholds and critical limits.")
+            st.warning("🔒 **Restricted Area:** Only Admin Manager can modify, add, or delete coil numbers and thresholds.")
         else:
-            st.write("⚙️ **Modify sensor values, critical limits, and safe zones:**")
-            for item, data in st.session_state.monitoring_data.items():
-                with st.expander(f"📌 Settings for: {item} (Current: {data['val']} ppm)"):
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        e_val = st.number_input("Current Value", value=float(data['val']), key=f"set_val_{item}", step=0.1)
-                    with col2:
-                        e_crit = st.number_input("Critical Low Limit", value=float(data['crit_low']), key=f"set_crit_{item}", step=0.1)
-                    with col3:
-                        e_safe = st.number_input("Safe Max Limit", value=float(data['safe_max']), key=f"set_safe_{item}", step=0.1)
-                    
-                    if st.button(f"Save Changes for {item}", key=f"btn_save_{item}"):
-                        new_status, new_color = evaluate_status(e_val, e_crit, e_safe)
-                        st.session_state.monitoring_data[item].update({
-                            "val": e_val,
-                            "crit_low": e_crit,
-                            "safe_max": e_safe,
-                            "status": new_status,
-                            "color": new_color
-                        })
-                        st.success(f"Updated {item} successfully!")
+            st.subheader("⚙️ Manage Coils & Threshold Limits")
+            
+            # Add New Coil Option
+            with st.expander("➕ Add New Coil / Monitoring Point"):
+                with st.form("add_coil_form"):
+                    new_coil_name = st.text_input("Coil Number / Name (e.g., Coil 1575)")
+                    init_val = st.number_input("Initial Oxygen Value (ppm)", value=250.0, step=1.0, format="%.0f")
+                    c_limit = st.number_input("Critical Low Limit", value=150.0, step=1.0, format="%.0f")
+                    s_limit = st.number_input("Safe Max Limit", value=500.0, step=1.0, format="%.0f")
+                    add_btn = st.form_submit_button("Add New Coil")
+                    if add_btn and new_coil_name:
+                        status, color = evaluate_status(init_val, c_limit, s_limit)
+                        st.session_state.monitoring_data[new_coil_name] = {
+                            "val": init_val, "status": status, "color": color, "crit_low": c_limit, "safe_max": s_limit
+                        }
+                        st.success(f"Added {new_coil_name} successfully!")
                         st.rerun()
+
+            st.markdown("---")
+            st.write("✏️ **Edit or Delete Existing Coils:**")
+            
+            items_to_modify = list(st.session_state.monitoring_data.keys())
+            for item in items_to_modify:
+                data = st.session_state.monitoring_data[item]
+                with st.expander(f"📌 {item} (Current: {data['val']} ppm)"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_name = st.text_input("Rename Coil", value=item, key=f"rename_{item}")
+                        e_val = st.number_input("Current Value", value=float(data['val']), key=f"set_val_{item}", step=1.0, format="%.0f")
+                    with col2:
+                        e_crit = st.number_input("Critical Low Limit", value=float(data['crit_low']), key=f"set_crit_{item}", step=1.0, format="%.0f")
+                        e_safe = st.number_input("Safe Max Limit", value=float(data['safe_max']), key=f"set_safe_{item}", step=1.0, format="%.0f")
+                    
+                    b_col1, b_col2 = st.columns(2)
+                    with b_col1:
+                        if st.button(f"Save Changes", key=f"btn_save_{item}"):
+                            new_status, new_color = evaluate_status(e_val, e_crit, e_safe)
+                            if new_name != item:
+                                st.session_state.monitoring_data[new_name] = st.session_state.monitoring_data.pop(item)
+                                item = new_name
+                            st.session_state.monitoring_data[item].update({
+                                "val": e_val, "crit_low": e_crit, "safe_max": e_safe, "status": new_status, "color": new_color
+                            })
+                            st.success(f"Updated successfully!")
+                            st.rerun()
+                    with b_col2:
+                        if st.button(f"🗑️ Delete Coil", key=f"btn_del_{item}"):
+                            if len(st.session_state.monitoring_data) > 1:
+                                del st.session_state.monitoring_data[item]
+                                st.warning(f"Deleted {item}!")
+                                st.rerun()
+                            else:
+                                st.error("Cannot delete the last remaining monitoring point.")
 
     with tab_users:
         users_df = pd.DataFrame([
-            {"Username": "admin", "Name": "Admin Manager", "Role": "Admin", "Access": "Settings & Monitoring"},
+            {"Username": "admin", "Name": "Admin Manager", "Role": "Admin", "Access": "Coil Management & Monitoring"},
             {"Username": "operator1", "Name": "Shift Operator 1", "Role": "Operator", "Access": "Shift Data Logging"},
             {"Username": "operator2", "Name": "Shift Operator 2", "Role": "Operator", "Access": "Shift Data Logging"}
         ])
@@ -242,7 +274,7 @@ else:
 
     with tab_logs:
         sample_logs = pd.DataFrame([
-            {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1", "Item Name": "CR-2002 (Top/Tail)", "Oxygen Val": 249.0, "Status": "SAFE ZONE"},
-            {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2", "Item Name": "CR-1605 (Top End)", "Oxygen Val": 107.0, "Status": "CRITICAL LOW ALERT"}
+            {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1", "Coil Name": "Coil 1572", "Oxygen Val": 249.0, "Status": "SAFE ZONE"},
+            {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2", "Coil Name": "Coil 1573", "Oxygen Val": 107.0, "Status": "CRITICAL LOW ALERT"}
         ])
         st.dataframe(sample_logs, use_container_width=True)
