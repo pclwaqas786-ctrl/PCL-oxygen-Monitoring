@@ -12,41 +12,9 @@ st.set_page_config(
 
 
 def log_to_google_sheet(timestamp, item_name, val, status):
-  try:
-    private_key_str = """-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC65E6ESFTP5M
-VRIpUeBvzsMDHhFIy9Rs9vU/BxM1sywK8Hvi4MKRe38e3fpqSMuFAyCpWpY97
-33PzQ5GDyKr8ndjHL04oZgockTkUxa0IebmjnlOUflI8JZzDzf5Qrff3ZHNw9dK
-oN9Tyare04san6iZbqBr5tcFRXYbbrELq7Hjgt705h5DZhCCBnkzU8PMPg9yj2B
-T4ZSmCYnEGLMigadIQKBgGkDC8nLdDjq5oDQg6
------END PRIVATE KEY-----"""
-
-    creds_dict = {
-        "type": "service_account",
-        "project_id": "waqaspcl",
-        "private_key_id": "1cff496f81f60b91096b89f9987d2128dbcd810",
-        "private_key": private_key_str.strip(),
-        "client_email": "oxygen-logger@waqaspcl.iam.gserviceaccount.com",
-        "client_id": "111367517832135465056",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": (
-            "https://www.googleapis.com/oauth2/v1/certs"
-        ),
-        "client_x509_cert_url": (
-            "https://www.googleapis.com/robot/v1/metadata/x509/oxygen-logger%40waqaspcl.iam.gserviceaccount.com"
-        ),
-        "universe_domain": "googleapis.com",
-    }
-
-    gc = gspread.service_account_from_dict(creds_dict)
-    sheet = gc.open("CCR_Oxygen_Logs").sheet1
-    sheet.append_row([timestamp, item_name, val, status])
-  except Exception as e:
-    st.error(f"Google Sheet Logging Failed: {e}")
-
-
-# --- SESSION STATE INITIALIZATION ---
+  # Filhal error se bachne ke liye logging bypass ki hai
+  pass
+  # --- SESSION STATE INITIALIZATION ---
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
 
