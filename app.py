@@ -13,9 +13,10 @@ st.set_page_config(
 
 def log_to_google_sheet(timestamp, item_name, val, status):
   try:
-    gc = gspread.service_account_from_dict(
-        dict(st.secrets["gcp_service_account"])
-    )
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+    gc = gspread.service_account_from_dict(creds_dict)
     sheet = gc.open("CCR_Oxygen_Logs").sheet1
     sheet.append_row([timestamp, item_name, val, status])
   except Exception as e:
