@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- INITIAL USER DATABASE (STORED IN SESSION STATE FOR DYNAMIC MANAGEMENT) ---
+# --- INITIAL USER DATABASE ---
 if "user_db" not in st.session_state:
   st.session_state.user_db = {
       "admin": {
@@ -34,7 +34,7 @@ if "user_db" not in st.session_state:
       },
   }
 
-# --- GOOGLE SHEETS CONNECTION SETUP ---
+# --- GOOGLE SHEETS LOGGING ---
 def log_to_google_sheet(timestamp, user_name, shift, item_name, val, status):
   try:
     creds_dict = dict(st.secrets["gcp_service_account"])
@@ -56,7 +56,7 @@ if "current_shift" not in st.session_state:
   st.session_state.current_shift = "Shift A (12 Hours)"
 
 if "app_title" not in st.session_state:
-  st.session_state.app_title = "CCR Pakistan Cable - Oxygen & Coil Monitoring"
+  st.session_state.app_title = "Pakistan Cable - Oxygen & Coil Monitoring"
 
 if "app_subtitle" not in st.session_state:
   st.session_state.app_subtitle = (
@@ -179,9 +179,8 @@ if not st.session_state.logged_in:
     else:
       st.sidebar.error("❌ Incorrect Username or Password!")
 
-  # --- FORGOT PASSWORD EXPANDER ---
   with st.sidebar.expander("🔑 Forgot Password?"):
-    st.caption("Enter your registered Username & Email to reset credentials.")
+    st.caption("Enter your registered Username & Email to recover password.")
     rec_user = st.text_input("Registered Username", key="rec_u")
     rec_email = st.text_input("Registered Email Address", key="rec_e")
 
@@ -191,7 +190,6 @@ if not st.session_state.logged_in:
           and st.session_state.user_db[rec_user]["email"].lower()
           == rec_email.strip().lower()
       ):
-        # Check if SMTP is configured in Streamlit Secrets
         if "smtp" in st.secrets:
           try:
             msg = email.mime.text.MIMEText(
@@ -217,13 +215,12 @@ if not st.session_state.logged_in:
           except Exception as ex:
             st.error(f"Email Dispatch Error: {ex}")
         else:
-          # Instant Fallback Password Display if SMTP secrets are not added yet
           st.success(
               f"🔑 Account Verified! Password for '{rec_user}' is:"
               f" **{st.session_state.user_db[rec_user]['pass']}**"
           )
       else:
-        st.error("Invalid Username or Email address matching system records.")
+        st.error("Invalid Username or Email address.")
 
 else:
   u_info = st.session_state.user_info
@@ -306,7 +303,6 @@ if st.session_state.logged_in:
         base64_img = base64.b64encode(bytes_data).decode()
         st.session_state.bg_image = f"data:{bg_file.type};base64,{base64_img}"
 
-    # --- DYNAMIC USER MANAGEMENT PANEL (ADMIN ONLY) ---
     st.sidebar.markdown("---")
     st.sidebar.subheader("👥 Admin: User Management")
 
@@ -346,7 +342,7 @@ if st.session_state.logged_in:
               f" *Email:* {udata.get('email', 'N/A')}"
           )
         with col_u2:
-          if uname != "admin":  # Protect root admin from deletion
+          if uname != "admin":
             if st.button("🗑️", key=f"del_user_{uname}"):
               del st.session_state.user_db[uname]
               st.success(f"User '{uname}' deleted.")
@@ -450,57 +446,65 @@ for idx, item in enumerate(st.session_state.monitoring_points):
         unsafe_allow_html=True,
     )
 
-# --- CONTINUOUS ALARM SOUND & VISUAL ALERT ---
-if any_high_alert:
+# --- ALARM SOUND & CRITICAL ALERT (ONLY ACTIVE WHEN LOGGED IN) ---
+if st.session_state.logged_in and any_high_alert:
   st.toast(
       "🚨 CRITICAL ALERT: Oxygen level is out of safe limits!", icon="⚠️"
   )
 
   alert_html = """
-    <div style="background-color: #8b0000; color: white; padding: 18px; border-radius: 10px; text-align: center; margin-bottom: 20px; border: 2px solid #ff4b4b;">
-        <h2 style="margin:0 0 8px 0; color: #ffffff;">🚨 CRITICAL HIGH ALERT!</h2>
-        <p style="font-size: 16px; margin:0 0 12px 0;">Oxygen level has exceeded safe operating limits!</p>
-        <button id="alarm-btn" onclick="triggerAlarmSound()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 20px; font-size: 15px; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+    <div style="background-color: #8b0000; color: white; padding: 20px; border-radius: 10px; text-align: center; margin-top: 10px; margin-bottom: 20px; border: 3px solid #ff4b4b;">
+        <h2 style="margin:0 0 8px 0; color: #ffffff; font-size: 26px;">🚨 CRITICAL HIGH ALERT!</h2>
+        <p style="font-size: 16px; margin:0 0 14px 0;">Oxygen level has exceeded safe operating limits!</p>
+        <button id="start-alarm-btn" onclick="playContinuousAlarm()" style="background-color: #ff4b4b; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.4);">
             🔔 CLICK HERE TO START ALARM SOUND 🔊
         </button>
     </div>
 
     <script>
-    (function() {
+    var alarmInterval = null;
+    function playContinuousAlarm() {
         var AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
-        var ctx = new AudioContext();
+        var audioCtx = new AudioContext();
 
-        function playLoudBeep() {
-            if (ctx.state === 'suspended') {
-                ctx.resume();
+        function triggerBeep() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
             }
-            var osc = ctx.createOscillator();
-            var gain = ctx.createGain();
+            var osc = audioCtx.createOscillator();
+            var gain = audioCtx.createGain();
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(950, ctx.currentTime);
-            gain.gain.setValueAtTime(0.5, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 880Hz Siren Tone
+            gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
             osc.connect(gain);
-            gain.connect(ctx.destination);
+            gain.connect(audioCtx.destination);
             osc.start();
-            osc.stop(ctx.currentTime + 0.35);
+            osc.stop(audioCtx.currentTime + 0.4);
         }
 
-        playLoudBeep();
-        var alarmInterval = setInterval(playLoudBeep, 650);
+        triggerBeep();
+        if (!alarmInterval) {
+            alarmInterval = setInterval(triggerBeep, 700);
+        }
+
+        var btn = document.getElementById("start-alarm-btn");
+        if (btn) {
+            btn.innerText = "🚨 ALARM SOUND ACTIVE (1 MINUTE)...";
+            btn.style.backgroundColor = "#cc0000";
+        }
 
         setTimeout(function() {
-            clearInterval(alarmInterval);
+            if (alarmInterval) {
+                clearInterval(alarmInterval);
+                alarmInterval = null;
+            }
+            if (btn) {
+                btn.innerText = "🔔 CLICK HERE TO RESTART ALARM SOUND 🔊";
+                btn.style.backgroundColor = "#ff4b4b";
+            }
         }, 60000);
-
-        window.triggerAlarmSound = function() {
-            ctx.resume().then(function() {
-                playLoudBeep();
-                var btn = document.getElementById("alarm-btn");
-                if (btn) btn.innerText = "🚨 ALARM RINGING (1 MINUTE)...";
-            });
-        };
-    })();
+    }
     </script>
     """
   st.markdown(alert_html, unsafe_allow_html=True)
