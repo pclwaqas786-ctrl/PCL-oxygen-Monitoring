@@ -48,6 +48,8 @@ if "store" not in st.session_state:
       "monitoring_points": [
           {
               "name": "CR-2002 (Top/Tail)",
+              "coil_prefix": "CR-",
+              "coil_num": "2002",
               "val": 249.01,
               "min": 200.0,
               "norm_min": 200.0,
@@ -57,6 +59,8 @@ if "store" not in st.session_state:
           },
           {
               "name": "CR-1605 (Top End)",
+              "coil_prefix": "CR-",
+              "coil_num": "1605",
               "val": 107.00,
               "min": 150.0,
               "norm_min": 150.0,
@@ -66,6 +70,8 @@ if "store" not in st.session_state:
           },
           {
               "name": "CR-2486 (Top End)",
+              "coil_prefix": "CR-",
+              "coil_num": "2486",
               "val": 577.00,
               "min": 200.0,
               "norm_min": 200.0,
@@ -75,6 +81,8 @@ if "store" not in st.session_state:
           },
           {
               "name": "Shaft Furnace (SF-6)",
+              "coil_prefix": "SF-",
+              "coil_num": "6",
               "val": 292.00,
               "min": 180.0,
               "norm_min": 180.0,
@@ -84,6 +92,8 @@ if "store" not in st.session_state:
           },
           {
               "name": "Tundish-Sample",
+              "coil_prefix": "TS-",
+              "coil_num": "01",
               "val": 512.00,
               "min": 200.0,
               "norm_min": 200.0,
@@ -97,32 +107,16 @@ if "store" not in st.session_state:
               "Timestamp": "2026-09-14 10:00:00",
               "Duty Shift": "Shift A (12 Hours)",
               "Item": "CR-2002 (Top/Tail)",
+              "Coil No": "CR-2002",
               "Oxygen Level (ppm)": 249.01,
               "Status": "SAFE ZONE",
               "Updated By": "System",
-          },
-          {
-              "Timestamp": "2026-09-14 10:15:00",
-              "Duty Shift": "Shift A (12 Hours)",
-              "Item": "CR-1605 (Top End)",
-              "Oxygen Level (ppm)": 107.00,
-              "Status": "CRITICAL LOW ALERT",
-              "Updated By": "operator1",
-          },
-          {
-              "Timestamp": "2026-09-14 10:30:00",
-              "Duty Shift": "Shift A (12 Hours)",
-              "Item": "CR-2486 (Top End)",
-              "Oxygen Level (ppm)": 577.00,
-              "Status": "CAUTION ZONE",
-              "Updated By": "admin",
           },
       ],
   }
 
 store = st.session_state.store
 
-# Initialize session state for user authentication
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
 if "username" not in st.session_state:
@@ -170,26 +164,33 @@ st.markdown(
 .card-title {
     font-weight: 700;
     font-size: 18px;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
     color: #ffffff;
     text-align: center;
 }
+.card-coil {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 10px;
+    color: #38bdf8;
+    text-align: center;
+}
 .card-val-green {
-    font-size: 42px;
+    font-size: 40px;
     font-weight: 800;
     color: #2ecc71;
     text-align: center;
     margin: 10px 0;
 }
 .card-val-orange {
-    font-size: 42px;
+    font-size: 40px;
     font-weight: 800;
     color: #f39c12;
     text-align: center;
     margin: 10px 0;
 }
 .card-val-red {
-    font-size: 42px;
+    font-size: 40px;
     font-weight: 800;
     color: #e74c3c;
     text-align: center;
@@ -233,7 +234,7 @@ st.markdown(
 st.sidebar.markdown("### 🔐 User Login & Controls")
 
 if not st.session_state.logged_in:
-  st.sidebar.warning("🔒 Read-Only Mode. Please log in to enable data updates.")
+  st.sidebar.warning("🔒 Read-Only Mode. Please log in to enable updates.")
   input_user = st.sidebar.text_input("Username", key="login_user")
   input_pass = st.sidebar.text_input("Password", type="password", key="login_pass")
   st.session_state.duty_shift = st.sidebar.selectbox(
@@ -254,11 +255,6 @@ if not st.session_state.logged_in:
       st.rerun()
     else:
       st.sidebar.error("Invalid Username or Password!")
-
-  with st.sidebar.expander("🔑 Forgot Password?"):
-    st.write(
-        "Contact Admin Manager at `admin@pcable.com` to reset your credentials."
-    )
 else:
   user_info = store["user_db"].get(
       st.session_state.username,
@@ -338,12 +334,6 @@ with head_col2:
 
 st.markdown("---")
 
-if not st.session_state.logged_in:
-  st.info(
-      "💡 **Note:** Display values are currently in live monitoring mode."
-      " Please log in via the sidebar to update values."
-  )
-
 # ---------------------------------------------------------
 # CARDS DISPLAY SECTION & ALARM LOGIC
 # ---------------------------------------------------------
@@ -354,6 +344,9 @@ alert_details = []
 for idx, pt in enumerate(store["monitoring_points"]):
   col = cols[idx % 3]
   val = pt["val"]
+  prefix = pt.get("coil_prefix", "CR-")
+  c_num = pt.get("coil_num", "")
+  full_coil_display = f"{prefix}{c_num}"
 
   if val < pt["norm_min"]:
     status_label = "CRITICAL ALERT (Red)"
@@ -361,14 +354,18 @@ for idx, pt in enumerate(store["monitoring_points"]):
     badge_class = "badge-critical"
     sub_desc = "Oxygen level critically low!"
     any_high_alert = True
-    alert_details.append(f"{pt['name']}: Low Level ({val} ppm)")
+    alert_details.append(
+        f"{pt['name']} (Coil: {full_coil_display}): Low Level ({val} ppm)"
+    )
   elif val > pt["caution_max"]:
     status_label = "CRITICAL ALERT (Red)"
     val_class = "card-val-red"
     badge_class = "badge-critical"
     sub_desc = "Oxygen level out of safe limits!"
     any_high_alert = True
-    alert_details.append(f"{pt['name']}: High Level ({val} ppm)")
+    alert_details.append(
+        f"{pt['name']} (Coil: {full_coil_display}): High Level ({val} ppm)"
+    )
   elif val > pt["norm_max"]:
     status_label = "CAUTION ZONE (Orange)"
     val_class = "card-val-orange"
@@ -385,6 +382,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
         f"""
         <div class="main-card">
             <div class="card-title">{pt['name']}</div>
+            <div class="card-coil">📦 Coil No: {full_coil_display}</div>
             <div class="{val_class}">{val:.1f} <span style="font-size:20px;">ppm</span></div>
             <div style="text-align: center; margin-top: 10px;">
                 <span class="{badge_class}">● {status_label}</span>
@@ -396,7 +394,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
     )
 
 # ---------------------------------------------------------
-# CRITICAL ALARM BANNER (ONLY SHOW WHEN LOGGED IN & ALERT ACTIVE)
+# CRITICAL ALARM BANNER
 # ---------------------------------------------------------
 if st.session_state.logged_in and any_high_alert:
   alert_msg = " | ".join(alert_details)
@@ -416,7 +414,6 @@ if st.session_state.logged_in and any_high_alert:
 
     function toggleSiren() {{
         var btn = document.getElementById("alarmBtn");
-        
         if (isPlaying) {{
             if (sirenInterval) clearInterval(sirenInterval);
             sirenInterval = null;
@@ -427,22 +424,15 @@ if st.session_state.logged_in and any_high_alert:
             }}
             return;
         }}
-        
         try {{
             var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-            if (!audioCtx) {{
-                audioCtx = new AudioCtxClass();
-            }}
-            if (audioCtx.state === 'suspended') {{
-                audioCtx.resume();
-            }}
-            
+            if (!audioCtx) {{ audioCtx = new AudioCtxClass(); }}
+            if (audioCtx.state === 'suspended') {{ audioCtx.resume(); }}
             isPlaying = true;
             if (btn) {{
                 btn.innerText = "🚨 ALARM RINGING (CLICK TO MUTE) 🔊";
                 btn.style.backgroundColor = "#cc0000";
             }}
-
             var flip = false;
             function playSirenTone() {{
                 if (!isPlaying) return;
@@ -450,30 +440,20 @@ if st.session_state.logged_in and any_high_alert:
                     var osc = audioCtx.createOscillator();
                     var gain = audioCtx.createGain();
                     osc.type = 'sawtooth';
-                    
                     var freq = flip ? 980 : 620;
                     flip = !flip;
-                    
                     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
                     gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
                     gain.gain.exponentialRampToValueAtTime(0.05, audioCtx.currentTime + 0.45);
-                    
                     osc.connect(gain);
                     gain.connect(audioCtx.destination);
-                    
                     osc.start();
                     osc.stop(audioCtx.currentTime + 0.45);
-                }} catch(e) {{
-                    console.error("Audio error:", e);
-                }}
+                }} catch(e) {{}}
             }}
-
             playSirenTone();
             sirenInterval = setInterval(playSirenTone, 500);
-
-        }} catch(err) {{
-            alert("Audio playback error: " + err.message);
-        }}
+        }} catch(err) {{}}
     }}
     </script>
     """
@@ -488,178 +468,190 @@ if st.session_state.logged_in:
       unsafe_allow_html=True,
   )
 
-  tabs = st.tabs([
-      "⚡ Update Values",
-      "➕ Manage Monitoring Points",
-      "👥 User Management (Admin)",
-      "📊 Google Sheets Log History",
-  ])
+  if st.session_state.user_role == "admin":
+    tabs = st.tabs([
+        "⚡ Update Readings & Coil No",
+        "⚙️ Admin: Manage Limits & CRs",
+        "👥 User Management",
+        "📊 Log History",
+    ])
+  else:
+    tabs = st.tabs(
+        ["⚡ Update Readings & Coil No", "📊 Log History (Read Only)"]
+    )
 
-  # TAB 1: UPDATE VALUES
+  # TAB 1: UPDATE VALUES & COIL NUMBER (WITH DEFAULT "CR-" PREFIX)
   with tabs[0]:
-    st.subheader("Update Live Sensor Readings")
-    up_col1, up_col2 = st.columns(2)
+    st.subheader("Update Live Sensor Reading & Coil Number")
+    up_col1, up_col2, up_col3 = st.columns(3)
+
+    pt_names = [p["name"] for p in store["monitoring_points"]]
+
     with up_col1:
-      selected_point_name = st.selectbox(
-          "Select Item to Update",
-          [p["name"] for p in store["monitoring_points"]],
-          key="update_sel_item",
+      selected_edit_idx = st.selectbox(
+          "1. Select Coil",
+          options=range(len(pt_names)),
+          format_func=lambda x: pt_names[x],
+          key="update_item_idx",
       )
-      selected_point = next(
-          p
-          for p in store["monitoring_points"]
-          if p["name"] == selected_point_name
-      )
-      new_val = st.number_input(
-          "New Oxygen Level (ppm)",
-          value=float(selected_point["val"]),
-          step=1.0,
-          format="%.2f",
-          key="update_new_val",
-      )
+      current_pt = store["monitoring_points"][selected_edit_idx]
 
     with up_col2:
-      st.info(
-          f"**Item Limits:** Normal: {selected_point['norm_min']} -"
-          f" {selected_point['norm_max']} ppm | Caution Max:"
-          f" {selected_point['caution_max']} ppm"
+      st.markdown(
+          "<label style='font-size:14px; font-weight:600; color:#ffffff;'>2."
+          " Enter Coil Number</label>",
+          unsafe_allow_html=True,
       )
-      if st.button("Submit & Save Reading", type="primary"):
-        selected_point["val"] = new_val
-
-        # Determine status
-        if new_val < selected_point["norm_min"]:
-          st_str = "CRITICAL LOW ALERT"
-        elif new_val > selected_point["caution_max"]:
-          st_str = "CRITICAL HIGH ALERT"
-        elif new_val > selected_point["norm_max"]:
-          st_str = "CAUTION ZONE"
-        else:
-          st_str = "SAFE ZONE"
-
-        # Add to log history
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        store["log_history"].append({
-            "Timestamp": now_str,
-            "Duty Shift": st.session_state.duty_shift,
-            "Item": selected_point_name,
-            "Oxygen Level (ppm)": new_val,
-            "Status": st_str,
-            "Updated By": st.session_state.username,
-        })
-        st.success(
-            f"Successfully updated {selected_point_name} to {new_val} ppm!"
+      col_p1, col_p2 = st.columns([1, 2])
+      with col_p1:
+        # Default Prefix display (e.g. CR-)
+        st.markdown(
+            "<div"
+            " style='background-color:#334155; padding:8px 10px;"
+            " border-radius:6px; text-align:center; font-weight:bold;"
+            f" color:#38bdf8;'>{current_pt.get('coil_prefix', 'CR-')}</div>",
+            unsafe_allow_html=True,
         )
-        st.rerun()
+      with col_p2:
+        new_coil_num = st.text_input(
+            "Number",
+            value=current_pt.get("coil_num", ""),
+            label_visibility="collapsed",
+            key="update_coil_num_input",
+        )
 
-  # TAB 2: MANAGE POINTS (ADD, EDIT CR/NAME, DELETE)
-  with tabs[1]:
-    st.subheader("Add, Edit or Remove Monitoring Points")
-
-    st.markdown("#### ✏️ Edit Existing Point / CR Name & Limits")
-
-    # Fixed index-based selection to prevent name updating failure
-    pt_names = [p["name"] for p in store["monitoring_points"]]
-    selected_edit_idx = st.selectbox(
-        "Select Point/CR to Edit",
-        options=range(len(pt_names)),
-        format_func=lambda x: pt_names[x],
-        key="edit_pt_index_sel",
-    )
-
-    edit_pt = store["monitoring_points"][selected_edit_idx]
-
-    new_edit_name = st.text_input(
-        "Edit Point / CR Name",
-        value=edit_pt["name"],
-        key=f"edit_name_{selected_edit_idx}",
-    )
-    new_edit_min = st.number_input(
-        "Minimum Safe (ppm)",
-        value=float(edit_pt["norm_min"]),
-        key=f"edit_min_{selected_edit_idx}",
-    )
-    new_edit_norm_max = st.number_input(
-        "Normal Max (ppm)",
-        value=float(edit_pt["norm_max"]),
-        key=f"edit_nmax_{selected_edit_idx}",
-    )
-    new_edit_caut_max = st.number_input(
-        "Caution Max (ppm)",
-        value=float(edit_pt["caution_max"]),
-        key=f"edit_cmax_{selected_edit_idx}",
-    )
-
-    if st.button("Update Point Settings", type="primary"):
-      store["monitoring_points"][selected_edit_idx]["name"] = new_edit_name
-      store["monitoring_points"][selected_edit_idx]["norm_min"] = new_edit_min
-      store["monitoring_points"][selected_edit_idx]["min"] = new_edit_min
-      store["monitoring_points"][selected_edit_idx]["norm_max"] = (
-          new_edit_norm_max
+    with up_col3:
+      new_val = st.number_input(
+          "3. Enter PPM",
+          value=float(current_pt["val"]),
+          step=1.0,
+          format="%.2f",
+          key="update_oxygen_val",
       )
-      store["monitoring_points"][selected_edit_idx]["caution_max"] = (
-          new_edit_caut_max
+
+    st.info(
+        f"**Limits for {current_pt['name']}:** Normal Max:"
+        f" {current_pt['norm_max']} ppm | Caution Max:"
+        f" {current_pt['caution_max']} ppm"
+    )
+
+    if st.button("Submit & Save Reading", type="primary"):
+      full_coil_str = f"{current_pt.get('coil_prefix', 'CR-')}{new_coil_num}"
+      current_pt["coil_num"] = new_coil_num
+      current_pt["val"] = new_val
+
+      # Determine status
+      if new_val < current_pt["norm_min"]:
+        st_str = "CRITICAL LOW ALERT"
+      elif new_val > current_pt["caution_max"]:
+        st_str = "CRITICAL HIGH ALERT"
+      elif new_val > current_pt["norm_max"]:
+        st_str = "CAUTION ZONE"
+      else:
+        st_str = "SAFE ZONE"
+
+      # Add to log history
+      now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      store["log_history"].append({
+          "Timestamp": now_str,
+          "Duty Shift": st.session_state.duty_shift,
+          "Item": current_pt["name"],
+          "Coil No": full_coil_str,
+          "Oxygen Level (ppm)": new_val,
+          "Status": st_str,
+          "Updated By": st.session_state.username,
+      })
+      st.success(
+          f"Successfully updated {current_pt['name']} (Coil No:"
+          f" {full_coil_str}) to {new_val} ppm!"
       )
-      store["monitoring_points"][selected_edit_idx]["high"] = new_edit_caut_max
-      st.success(f"Successfully updated to '{new_edit_name}'!")
       st.rerun()
 
-    st.markdown("---")
+  # TAB 2 (ADMIN ONLY): MANAGE LIMITS & CR NAMES
+  if st.session_state.user_role == "admin":
+    with tabs[1]:
+      st.subheader("⚙️ Admin Panel: Edit CR Limits & Names")
 
-    if st.session_state.user_role == "admin":
-      st.markdown("#### ➕ Add New Point")
-      p_name = st.text_input(
-          "Point Name (e.g. CR-3000 Top End)", key="add_p_name"
+      pt_names_adm = [p["name"] for p in store["monitoring_points"]]
+      adm_edit_idx = st.selectbox(
+          "Select Point to Configure Limits",
+          options=range(len(pt_names_adm)),
+          format_func=lambda x: pt_names_adm[x],
+          key="adm_edit_sel",
       )
-      p_val = st.number_input("Initial Value (ppm)", value=250.0, key="add_p_val")
-      p_min = st.number_input(
-          "Minimum Safe (ppm)", value=150.0, key="add_p_min"
+      adm_pt = store["monitoring_points"][adm_edit_idx]
+
+      adm_new_name = st.text_input(
+          "Edit CR / Point Name",
+          value=adm_pt["name"],
+          key=f"adm_name_{adm_edit_idx}",
       )
-      p_norm_max = st.number_input(
-          "Normal Max (ppm)", value=400.0, key="add_p_norm_max"
+      adm_new_prefix = st.text_input(
+          "Default Prefix (e.g. CR-, SF-)",
+          value=adm_pt.get("coil_prefix", "CR-"),
+          key=f"adm_pref_{adm_edit_idx}",
       )
-      p_caut_max = st.number_input(
-          "Caution Max (ppm)", value=600.0, key="add_p_caut_max"
+      adm_new_min = st.number_input(
+          "Minimum Safe Limit (ppm)",
+          value=float(adm_pt["norm_min"]),
+          key=f"adm_min_{adm_edit_idx}",
+      )
+      adm_new_norm_max = st.number_input(
+          "Normal Max Limit (ppm)",
+          value=float(adm_pt["norm_max"]),
+          key=f"adm_nmax_{adm_edit_idx}",
+      )
+      adm_new_caut_max = st.number_input(
+          "Caution / High Alert Max Limit (ppm)",
+          value=float(adm_pt["caution_max"]),
+          key=f"adm_cmax_{adm_edit_idx}",
       )
 
-      if st.button("Add Monitoring Point"):
-        if p_name:
-          store["monitoring_points"].append({
-              "name": p_name,
-              "val": p_val,
-              "min": p_min,
-              "norm_min": p_min,
-              "norm_max": p_norm_max,
-              "caution_max": p_caut_max,
-              "high": p_caut_max,
-          })
-          st.success(f"Added {p_name} successfully!")
-          st.rerun()
-        else:
-          st.error("Please provide a valid point name.")
+      if st.button("Save Limits & Configuration", type="primary"):
+        store["monitoring_points"][adm_edit_idx]["name"] = adm_new_name
+        store["monitoring_points"][adm_edit_idx]["coil_prefix"] = adm_new_prefix
+        store["monitoring_points"][adm_edit_idx]["norm_min"] = adm_new_min
+        store["monitoring_points"][adm_edit_idx]["min"] = adm_new_min
+        store["monitoring_points"][adm_edit_idx]["norm_max"] = adm_new_norm_max
+        store["monitoring_points"][adm_edit_idx]["caution_max"] = (
+            adm_new_cauth_max
+            if "adm_new_cauth_max" in locals()
+            else adm_new_caut_max
+        )
+        store["monitoring_points"][adm_edit_idx]["high"] = adm_new_caut_max
+        st.success("Configuration updated successfully!")
+        st.rerun()
 
       st.markdown("---")
-      st.markdown("#### 🗑️ Remove Point")
-      del_point = st.selectbox(
-          "Select Point to Delete",
-          [p["name"] for p in store["monitoring_points"]],
-          key="del_sel",
+      st.markdown("#### ➕ Add New Monitoring Point")
+      add_p_name = st.text_input("New Point Name (e.g. CR-3000)", key="new_p")
+      add_p_pref = st.text_input("Prefix (e.g. CR-)", value="CR-", key="new_pr")
+      add_p_coil = st.text_input(
+          "Default Coil Number", value="3000", key="new_p_c"
       )
-      if st.button("Delete Selected Point", type="secondary"):
-        store["monitoring_points"] = [
-            p for p in store["monitoring_points"] if p["name"] != del_point
-        ]
-        st.success(f"Deleted {del_point} successfully!")
-        st.rerun()
-    else:
-      st.info(
-          "Note: Adding new points or deleting points requires Admin privileges,"
-          " but you can edit existing point names/limits above."
+      add_p_val = st.number_input(
+          "Initial Oxygen Value", value=250.0, key="new_p_v"
       )
 
-  # TAB 3: USER MANAGEMENT (ADMIN ONLY)
-  with tabs[2]:
-    if st.session_state.user_role == "admin":
+      if st.button("Add New Monitoring Point"):
+        if add_p_name:
+          store["monitoring_points"].append({
+              "name": add_p_name,
+              "coil_prefix": add_p_pref,
+              "coil_num": add_p_coil,
+              "val": add_p_val,
+              "min": 150.0,
+              "norm_min": 150.0,
+              "norm_max": 400.0,
+              "caution_max": 600.0,
+              "high": 600.0,
+          })
+          st.success(f"Added {add_p_name} successfully!")
+          st.rerun()
+
+  # USER MANAGEMENT TAB (ADMIN ONLY)
+  if st.session_state.user_role == "admin":
+    with tabs[2]:
       st.subheader("👥 System User Accounts")
       users_df = pd.DataFrame([
           {
@@ -672,32 +664,9 @@ if st.session_state.logged_in:
       ])
       st.dataframe(users_df, use_container_width=True)
 
-      st.markdown("#### Create New User Account")
-      nu_user = st.text_input("New Username", key="nu_user_input")
-      nu_pass = st.text_input(
-          "New Password", type="password", key="nu_pass_input"
-      )
-      nu_name = st.text_input("Full Name", key="nu_name_input")
-      nu_email = st.text_input("Email", key="nu_email_input")
-      nu_role = st.selectbox("Role", ["operator", "admin"], key="nu_role_input")
-
-      if st.button("Create Account"):
-        if nu_user and nu_pass:
-          store["user_db"][nu_user] = {
-              "pass": nu_pass,
-              "name": nu_name,
-              "role": nu_role,
-              "email": nu_email,
-          }
-          st.success(f"User {nu_user} created successfully!")
-          st.rerun()
-        else:
-          st.error("Username and Password are required.")
-    else:
-      st.warning("Access Restricted: Admin privileges required.")
-
-  # TAB 4: LOG HISTORY
-  with tabs[3]:
+  # LOG HISTORY TAB
+  log_tab_index = 3 if st.session_state.user_role == "admin" else 1
+  with tabs[log_tab_index]:
     st.subheader("📊 24/7 Google Sheets Logged History")
     df_logs = pd.DataFrame(store["log_history"])
     st.dataframe(df_logs, use_container_width=True)
