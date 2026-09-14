@@ -14,6 +14,11 @@ st.set_page_config(
 def log_to_google_sheet(timestamp, item_name, val, status):
   try:
     secrets_dict = dict(st.secrets["gcp_service_account"])
+    if "private_key" in secrets_dict:
+      secrets_dict["private_key"] = secrets_dict["private_key"].replace(
+          "\\n", "\n"
+      )
+
     gc = gspread.service_account_from_dict(secrets_dict)
     sheet = gc.open("CCR_Oxygen_Logs").sheet1
     sheet.append_row([timestamp, item_name, val, status])
@@ -28,8 +33,8 @@ if "logged_in" not in st.session_state:
 if "monitoring_points" not in st.session_state:
   st.session_state.monitoring_points = [
       {
-          "name": "CR-1586 (Top/Tail)",
-          "val": 449.0,
+          "name": "CR-1589 (Top/Tail)",
+          "val": 249.0,
           "min": 200.0,
           "norm_min": 200.0,
           "norm_max": 400.0,
@@ -37,7 +42,7 @@ if "monitoring_points" not in st.session_state:
           "high": 600.0,
       },
       {
-          "name": "CR-1601 (Top End)",
+          "name": "CR-1605 (Top End)",
           "val": 107.0,
           "min": 150.0,
           "norm_min": 150.0,
@@ -46,7 +51,7 @@ if "monitoring_points" not in st.session_state:
           "high": 500.0,
       },
       {
-          "name": "CR-1603 (Top End)",
+          "name": "CR-2486 (Top End)",
           "val": 577.0,
           "min": 200.0,
           "norm_min": 200.0,
