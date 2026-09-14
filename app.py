@@ -6,89 +6,50 @@ import datetime
 # ---------------------------------------------------------
 # 1. Page Configuration
 # ---------------------------------------------------------
-st.set_page_config(
-    page_title="Pakistan Cable (CCR) - Oxygen & Coil Monitoring",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Pakistan Cable (CCR) - Oxygen & Coil Monitoring", page_icon="⚡", layout="wide")
 
 # ---------------------------------------------------------
-# 2. Session State Initialization (Persistent Storage)
+# 2. Session State Initialization (With Thresholds)
 # ---------------------------------------------------------
 if "bg_image" not in st.session_state:
     st.session_state.bg_image = None
-
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
-
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
+# Ab har item ke sath uski Safe/Critical limits bhi save hongi
 if "monitoring_data" not in st.session_state:
     st.session_state.monitoring_data = {
-        "CR-2002 (Top/Tail)": {"val": 249.0, "status": "SAFE ZONE", "color": "#00E676"},
-        "CR-1605 (Top End)": {"val": 107.0, "status": "CRITICAL LOW ALERT", "color": "#FF2B2B"},
-        "CR-2486 (Top End)": {"val": 577.0, "status": "CAUTION ZONE", "color": "#FF9100"},
-        "Shaft Furnace (SF-6)": {"val": 310.0, "status": "SAFE ZONE", "color": "#00E676"},
-        "Tundish-Sample": {"val": 180.0, "status": "SAFE ZONE", "color": "#00E676"}
+        "CR-2002 (Top/Tail)": {"val": 249.0, "status": "SAFE ZONE", "color": "#00E676", "crit_low": 150.0, "safe_max": 500.0},
+        "CR-1605 (Top End)": {"val": 107.0, "status": "CRITICAL LOW ALERT", "color": "#FF2B2B", "crit_low": 150.0, "safe_max": 500.0},
+        "CR-2486 (Top End)": {"val": 577.0, "status": "CAUTION ZONE", "color": "#FF9100", "crit_low": 150.0, "safe_max": 500.0}
     }
 
+# Function to evaluate status dynamically based on user-defined limits
+def evaluate_status(val, crit_low, safe_max):
+    if val < crit_low:
+        return "CRITICAL LOW ALERT", "#FF2B2B"
+    elif crit_low <= val <= safe_max:
+        return "SAFE ZONE", "#00E676"
+    else:
+        return "CAUTION ZONE", "#FF9100"
+
 # ---------------------------------------------------------
-# 3. Dynamic Custom CSS (Wallpaper & Styling)
+# 3. Dynamic Custom CSS
 # ---------------------------------------------------------
 custom_css = """
 <style>
-/* Main App Styling */
-.main-title {
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: #1E293B;
-    margin-bottom: 0px;
-}
-.sub-title {
-    font-size: 1rem;
-    color: #64748B;
-    margin-bottom: 25px;
-}
-/* Metric Card Styling */
-.metric-card {
-    background-color: #1E1E1E;
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-    color: white;
-    box-shadow: 0px 4px 12px rgba(0,0,0,0.15);
-    margin-bottom: 15px;
-}
-.metric-value {
-    font-size: 2.5rem;
-    font-weight: bold;
-    margin: 10px 0;
-}
-.status-badge {
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    display: inline-block;
-}
+.main-title { font-size: 2.2rem; font-weight: 800; color: #1E293B; margin-bottom: 0px; }
+.sub-title { font-size: 1rem; color: #64748B; margin-bottom: 25px; }
+.metric-card { background-color: #1E1E1E; border-radius: 12px; padding: 20px; text-align: center; color: white; box-shadow: 0px 4px 12px rgba(0,0,0,0.15); margin-bottom: 15px; }
+.metric-value { font-size: 2.5rem; font-weight: bold; margin: 10px 0; }
+.status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
 </style>
 """
 
-# Apply Background Image CSS if uploaded
 if st.session_state.bg_image:
-    bg_css = f"""
-    <style>
-    .stApp {{
-        background-image: url("{st.session_state.bg_image}");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-    }}
-    </style>
-    """
+    bg_css = f"""<style>.stApp {{ background-image: url("{st.session_state.bg_image}"); background-size: cover; background-position: center; background-attachment: fixed; }} </style>"""
     st.markdown(bg_css, unsafe_allow_html=True)
 
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -98,63 +59,47 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # ---------------------------------------------------------
 st.sidebar.title("🔐 User Login & Controls")
 
-# Input User ID
-username_input = st.sidebar.text_input("Username", value="", key="login_username").strip().lower()
-password_input = st.sidebar.text_input("Password", type="password", key="login_password")
-
-# --- ADMIN VS REGULAR USER LOGIC ---
-selected_shift = None
-if username_input == "admin":
-    st.sidebar.info("ℹ️ **Admin Manager Mode:** Viewing only. Shift selection disabled.")
+if st.session_state.logged_in_user:
+    st.sidebar.success(f"Logged in as: **{st.session_state.logged_in_user}**")
+    if st.sidebar.button("Logout", use_container_width=True):
+        st.session_state.logged_in_user = None
+        st.session_state.user_role = None
+        st.rerun()
 else:
-    selected_shift = st.sidebar.selectbox(
-        "Select Duty Shift",
-        ["Shift A (12 Hours)", "Shift B (12 Hours)"],
-        key="duty_shift_select"
-    )
+    username_input = st.sidebar.text_input("Username").strip().lower()
+    password_input = st.sidebar.text_input("Password", type="password")
 
-# Login Button Action
-if st.sidebar.button("Login to Dashboard", use_container_width=True):
+    selected_shift = None
     if username_input == "admin":
-        st.session_state.logged_in_user = "Admin Manager"
-        st.session_state.user_role = "admin"
-        st.sidebar.success("Logged in as: ADMIN MANAGER")
-    elif username_input in ["operator1", "operator2", "user1", "user2"]:
-        st.session_state.logged_in_user = username_input.upper()
-        st.session_state.user_role = "operator"
-        st.sidebar.success(f"Logged in as: {username_input.upper()} ({selected_shift})")
+        st.sidebar.info("ℹ️ **Admin Mode:** Viewing & Settings Allowed. Data Logging disabled.")
     else:
-        st.sidebar.error("Invalid Username or Password")
+        selected_shift = st.sidebar.selectbox("Select Duty Shift", ["Shift A (12 Hours)", "Shift B (12 Hours)"])
 
-# Read-Only Warning if not logged in
-if not st.session_state.logged_in_user:
-    st.sidebar.warning("🔒 Read-Only Mode. Please log in to enable data updates.")
+    if st.sidebar.button("Login to Dashboard", use_container_width=True):
+        if username_input == "admin":
+            st.session_state.logged_in_user = "Admin Manager"
+            st.session_state.user_role = "admin"
+            st.rerun()
+        elif username_input in ["operator1", "operator2"]:
+            st.session_state.logged_in_user = f"{username_input.upper()} ({selected_shift})"
+            st.session_state.user_role = "operator"
+            st.rerun()
+        else:
+            st.sidebar.error("Invalid Username or Password")
 
-# --- SIDEBAR WALLPAPER UPLOADER ---
+# Background Wallpaper Uploader
 st.sidebar.markdown("---")
-st.sidebar.subheader("🖼️ Company Logo & Wallpaper")
-
-uploaded_wallpaper = st.sidebar.file_uploader(
-    "Upload Background Wallpaper", 
-    type=["png", "jpg", "jpeg"], 
-    key="bg_uploader"
-)
-
+uploaded_wallpaper = st.sidebar.file_uploader("Upload Background Wallpaper", type=["png", "jpg", "jpeg"])
 if uploaded_wallpaper is not None:
-    file_bytes = uploaded_wallpaper.read()
-    encoded_img = base64.b64encode(file_bytes).decode()
+    encoded_img = base64.b64encode(uploaded_wallpaper.read()).decode()
     st.session_state.bg_image = f"data:image/png;base64,{encoded_img}"
-    st.sidebar.success("Background Wallpaper updated!")
+    st.sidebar.success("Wallpaper updated!")
 
 # ---------------------------------------------------------
-# 5. Header Area
+# 5. Dashboard Cards & Alarms
 # ---------------------------------------------------------
 st.markdown('<div class="main-title">Pakistan Cable (CCR)- Oxygen & Coil Monitoring</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Real-time oxygen tracking system with individual item thresholds and 24/7 Google Sheets logging.</div>', unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 6. Live Cards Section
-# ---------------------------------------------------------
 cols = st.columns(len(st.session_state.monitoring_data))
 for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
     with cols[idx]:
@@ -167,82 +112,60 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
                     ● {data['status']}
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """, unsafe_allow_html=True
         )
 
-# Critical Alarm Banner
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
-if critical_items:
+if critical_items and st.session_state.logged_in_user:
     st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level on `{', '.join(critical_items)}`")
     if st.button("📢 START EMERGENCY SIREN ALARM 🔊", use_container_width=True):
-        st.warning("Siren Sound Activated!")
+        st.warning("Emergency Siren Alarm Activated!")
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 7. Operations & Control Tabs
+# 6. Operations Tabs
 # ---------------------------------------------------------
-st.subheader("📝 Live Data Entry & Operations Panel")
+tab_update, tab_manage = st.tabs(["⚡ Data Entry (Operators)", "⚙️ Edit Values & Thresholds (Admin/Settings)"])
 
-tab_update, tab_manage, tab_users, tab_logs = st.tabs([
-    "⚡ Update Values", 
-    "➕ Manage Monitoring Points", 
-    "🎥 User Management (Admin)", 
-    "📊 Google Sheets Log History"
-])
-
-# TAB 1: UPDATE VALUES (Restricted for Admin)
+# TAB 1: DATA ENTRY (Only Operators)
 with tab_update:
-    if st.session_state.user_role == "admin":
-        st.info("🚫 **Admin Access Restricted:** Admin only monitors system status. Entry disabled.")
+    if not st.session_state.logged_in_user:
+        st.warning("Please login to log data.")
+    elif st.session_state.user_role == "admin":
+        st.info("🚫 Admin can view and edit settings in the next tab, but cannot log daily shift data here.")
     elif st.session_state.user_role == "operator":
-        st.write(f"**Logged User:** `{st.session_state.logged_in_user}` | **Active Shift:** `{selected_shift}`")
         with st.form("entry_form"):
-            selected_item = st.selectbox("Select Monitoring Point", list(st.session_state.monitoring_data.keys()))
-            new_val = st.number_input("Oxygen Value (ppm)", min_value=0.0, max_value=2000.0, value=250.0, step=0.1)
-            
-            submit_btn = st.form_submit_button("Submit & Sync to Google Sheets")
-            if submit_btn:
-                # Status Threshold Logic
-                if new_val < 150:
-                    status, color = "CRITICAL LOW ALERT", "#FF2B2B"
-                elif 150 <= new_val <= 500:
-                    status, color = "SAFE ZONE", "#00E676"
-                else:
-                    status, color = "CAUTION ZONE", "#FF9100"
+            selected_item = st.selectbox("Select Point", list(st.session_state.monitoring_data.keys()))
+            new_val = st.number_input("Oxygen Value (ppm)", value=250.0)
+            if st.form_submit_button("Submit Data"):
+                # Get dynamic thresholds
+                c_low = st.session_state.monitoring_data[selected_item]['crit_low']
+                s_max = st.session_state.monitoring_data[selected_item]['safe_max']
+                status, color = evaluate_status(new_val, c_low, s_max)
                 
-                st.session_state.monitoring_data[selected_item] = {"val": new_val, "status": status, "color": color}
-                st.success(f"Data Logged: {selected_item} set to {new_val} ppm ({status})")
+                st.session_state.monitoring_data[selected_item].update({"val": new_val, "status": status, "color": color})
+                st.success(f"Logged! {selected_item} is now {status}")
                 st.rerun()
-    else:
-        st.warning("Please login from the sidebar to enter data.")
 
-# TAB 2: MANAGE POINTS
+# TAB 2: EDIT VALUES & ZONES (Admin & Adjustments)
 with tab_manage:
-    st.write("Manage active sensor points and thresholds.")
-    new_point_name = st.text_input("New Point Name (e.g., Tundish-Sample-2)")
-    if st.button("Add Sensor Point"):
-        if new_point_name and new_point_name not in st.session_state.monitoring_data:
-            st.session_state.monitoring_data[new_point_name] = {"val": 200.0, "status": "SAFE ZONE", "color": "#00E676"}
-            st.success(f"Added new point: {new_point_name}")
-            st.rerun()
-
-# TAB 3: USER MANAGEMENT
-with tab_users:
-    st.subheader("👥 System User Accounts")
-    users_df = pd.DataFrame([
-        {"Username": "admin", "Name": "Admin Manager", "Role": "Admin (Read-Only)", "Shift": "N/A"},
-        {"Username": "operator1", "Name": "Shift Officer 1", "Role": "Operator", "Shift": "Shift A / B"},
-        {"Username": "operator2", "Name": "Shift Operator 2", "Role": "Operator", "Shift": "Shift A / B"}
-    ])
-    st.dataframe(users_df, use_container_width=True)
-
-# TAB 4: LOG HISTORY
-with tab_logs:
-    st.subheader("📋 Recent Google Sheets Audit Trail")
-    sample_logs = pd.DataFrame([
-        {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1", "Shift": "Shift A (12 Hours)", "Item Name": "CR-2002 (Top/Tail)", "Oxygen Val": 249.0, "Status": "SAFE ZONE"},
-        {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2", "Shift": "Shift B (12 Hours)", "Item Name": "CR-1605 (Top End)", "Oxygen Val": 107.0, "Status": "CRITICAL LOW ALERT"}
-    ])
-    st.dataframe(sample_logs, use_container_width=True)
+    if not st.session_state.logged_in_user:
+        st.warning("Please login to manage settings.")
+    else:
+        st.write("Yahan se aap kisi bhi point ki value aur uski Safe Zone / Critical Zone ki limit edit kar sakte hain:")
+        for item, data in st.session_state.monitoring_data.items():
+            with st.expander(f"⚙️ Edit {item} Settings"):
+                col1, col2, col3 = st.columns(3)
+                edit_val = col1.number_input("Current Value", value=float(data['val']), key=f"val_{item}")
+                edit_crit = col2.number_input("Critical Low Limit (Below this is Red)", value=float(data['crit_low']), key=f"crit_{item}")
+                edit_safe = col3.number_input("Safe Max Limit (Above this is Orange)", value=float(data['safe_max']), key=f"safe_{item}")
+                
+                if st.button(f"Save Settings for {item}", key=f"save_{item}"):
+                    new_status, new_color = evaluate_status(edit_val, edit_crit, edit_safe)
+                    st.session_state.monitoring_data[item].update({
+                        "val": edit_val, "crit_low": edit_crit, "safe_max": edit_safe, 
+                        "status": new_status, "color": new_color
+                    })
+                    st.success("Settings updated successfully!")
+                    st.rerun()
