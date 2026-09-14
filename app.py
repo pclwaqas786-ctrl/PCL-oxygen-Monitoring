@@ -110,7 +110,7 @@ if "monitoring_points" not in st.session_state:
       },
   ]
 
-# --- PERSISTENT WALLPAPER ---
+# --- PERSISTENT BACKGROUND WALLPAPER ---
 if st.session_state.bg_image:
   bg_css = f"""
     <style>
@@ -143,7 +143,9 @@ st.markdown("---")
 st.sidebar.header("🔐 User Login & Controls")
 
 if not st.session_state.logged_in:
-  st.sidebar.warning("🔒 Read-Only Mode. Data entry ke liye login karein.")
+  st.sidebar.warning(
+      "🔒 Read-Only Mode. Please log in to enable data updates."
+  )
 
   input_user = st.sidebar.text_input("Username", key="login_user")
   input_pass = st.sidebar.text_input(
@@ -319,8 +321,8 @@ if st.session_state.logged_in:
 
 else:
   st.info(
-      "💡 **Note:** Display values live monitoring mode mein hain. Data entry ke"
-      " liye sidebar se login karein."
+      "💡 **Note:** Display values are currently in live monitoring mode. Please"
+      " log in via the sidebar to update values."
   )
 
 # --- CARDS DISPLAY ---
@@ -347,13 +349,13 @@ for idx, item in enumerate(st.session_state.monitoring_points):
 # --- CONTINUOUS ALARM SOUND & VISUAL ALERT ---
 if any_high_alert:
   st.toast(
-      "🚨 CRITICAL ALERT: Oxygen level critical limits se bahar hai!", icon="⚠️"
+      "🚨 CRITICAL ALERT: Oxygen level is out of safe limits!", icon="⚠️"
   )
 
   alert_html = """
     <div style="background-color: #8b0000; color: white; padding: 18px; border-radius: 10px; text-align: center; margin-bottom: 20px; border: 2px solid #ff4b4b;">
         <h2 style="margin:0 0 8px 0; color: #ffffff;">🚨 CRITICAL HIGH ALERT!</h2>
-        <p style="font-size: 16px; margin:0 0 12px 0;">Oxygen level safe limits se bahar ho gaya hai!</p>
+        <p style="font-size: 16px; margin:0 0 12px 0;">Oxygen level has exceeded safe operating limits!</p>
         <button id="alarm-btn" onclick="triggerAlarmSound()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 20px; font-size: 15px; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
             🔔 CLICK HERE TO START ALARM SOUND 🔊
         </button>
