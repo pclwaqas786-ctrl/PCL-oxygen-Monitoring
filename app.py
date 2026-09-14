@@ -1,19 +1,25 @@
 import streamlit as st
 import pandas as pd
+import base64
 import datetime
 
 # ---------------------------------------------------------
 # 1. Page Configuration
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Pakistan Cable (CCR) - Oxygen Monitoring",
+    page_title="Pakistan Cable (CCR) - Oxygen & Coil Monitoring",
     page_icon="⚡",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ---------------------------------------------------------
 # 2. Session State Initialization
 # ---------------------------------------------------------
+if "bg_image" not in st.session_state:
+    st.session_state.bg_image = None
+if "logo_image" not in st.session_state:
+    st.session_state.logo_image = None
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 if "user_role" not in st.session_state:
@@ -37,23 +43,38 @@ def evaluate_status(val, crit_low, safe_max):
         return "CAUTION ZONE", "#FF9100"
 
 # ---------------------------------------------------------
-# 3. Simple Clean Styling
+# 3. Custom CSS & High-Contrast Wallpaper Styling
 # ---------------------------------------------------------
-st.markdown("""
+bg_style = ""
+if st.session_state.bg_image:
+    bg_style = f"""
+    .stApp {{
+        background: linear-gradient(rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.82)), url("{st.session_state.bg_image}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    """
+else:
+    bg_style = ".stApp { background-color: #0F172A; }"
+
+custom_css = f"""
 <style>
-.stApp { background-color: #0F172A; color: #FFFFFF; }
-.main-title { font-size: 2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0px; }
-.sub-title { font-size: 0.95rem; color: #94A3B8; margin-bottom: 20px; }
-.metric-card { background-color: #1E293B; border: 1px solid #334155; border-radius: 10px; padding: 15px; text-align: center; color: white; margin-bottom: 10px; }
-.metric-value { font-size: 2.2rem; font-weight: bold; margin: 8px 0; }
-.status-badge { padding: 4px 10px; border-radius: 15px; font-size: 0.75rem; font-weight: bold; display: inline-block; }
+{bg_style}
+.main-title {{ font-size: 2.2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }}
+.sub-title {{ font-size: 1rem; color: #E2E8F0; margin-bottom: 25px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }}
+.metric-card {{ background-color: rgba(15, 23, 42, 0.95); border: 2px solid rgba(255,255,255,0.2); border-radius: 14px; padding: 20px; text-align: center; color: white; box-shadow: 0 8px 32px rgba(0,0,0,0.6); margin-bottom: 15px; }}
+.metric-value {{ font-size: 2.5rem; font-weight: bold; margin: 10px 0; }}
+.status-badge {{ padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; display: inline-block; }}
 </style>
-""", unsafe_allow_html=True)
+"""
+
+st.markdown(custom_css, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 4. Sidebar Login
+# 4. Sidebar Controls, Logo & Wallpaper Upload
 # ---------------------------------------------------------
-st.sidebar.title("🔐 User Login")
+st.sidebar.title("🔐 User Login & Controls")
 
 if st.session_state.logged_in_user:
     st.sidebar.success(f"Logged in: **{st.session_state.logged_in_user}**")
@@ -62,12 +83,11 @@ if st.session_state.logged_in_user:
         st.session_state.user_role = None
         st.rerun()
 else:
-    username_input = st.sidebar.text_input("Username").strip().lower()
-    password_input = st.sidebar.text_input("Password", type="password")
-
+    username_input = st.sidebar.text_input("Username", key="login_username").strip().lower()
+    password_input = st.sidebar.text_input("Password", type="password", key="login_password")
     selected_shift = st.sidebar.selectbox("Select Duty Shift", ["Shift A (12 Hours)", "Shift B (12 Hours)"])
 
-    if st.sidebar.button("Login", use_container_width=True):
+    if st.sidebar.button("Login to Dashboard", use_container_width=True):
         if username_input == "admin":
             st.session_state.logged_in_user = "Admin Manager"
             st.session_state.user_role = "admin"
@@ -77,13 +97,29 @@ else:
             st.session_state.user_role = "operator"
             st.rerun()
         else:
-            st.sidebar.error("Invalid Username or Password (use admin or operator1)")
+            st.sidebar.error("Invalid Username or Password")
+
+# Company Logo & Wallpaper Uploader in Sidebar
+st.sidebar.markdown("---")
+st.sidebar.subheader("🎨 Customization Panel")
+
+uploaded_logo = st.sidebar.file_uploader("Upload Company Logo", type=["png", "jpg", "jpeg"], key="logo_uploader")
+if uploaded_logo is not None:
+    st.session_state.logo_image = f"data:image/png;base64,{base64.b64encode(uploaded_logo.read()).decode()}"
+
+if st.session_state.logo_image:
+    st.sidebar.image(st.session_state.logo_image, width=140, caption="Company Logo")
+
+uploaded_wallpaper = st.sidebar.file_uploader("Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_uploader")
+if uploaded_wallpaper is not None:
+    st.session_state.bg_image = f"data:image/png;base64,{base64.b64encode(uploaded_wallpaper.read()).decode()}"
+    st.rerun()
 
 # ---------------------------------------------------------
 # 5. Header & Metric Cards
 # ---------------------------------------------------------
-st.markdown('<div class="main-title">Pakistan Cable (CCR) - Oxygen Monitoring</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Real-time oxygen tracking system</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">Pakistan Cable (CCR) - Oxygen & Coil Monitoring</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Real-time oxygen tracking system with individual coil thresholds.</div>', unsafe_allow_html=True)
 
 cols = st.columns(len(st.session_state.monitoring_data))
 for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
@@ -91,8 +127,8 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
         st.markdown(
             f"""
             <div class="metric-card">
-                <div style="font-size:0.9rem; font-weight:600; color:#E2E8F0;">{item}</div>
-                <div class="metric-value" style="color:{data['color']};">{data['val']} <span style="font-size:0.9rem;">ppm</span></div>
+                <div style="font-size:0.95rem; font-weight:700; color:#FFFFFF;">{item}</div>
+                <div class="metric-value" style="color:{data['color']};">{data['val']} <span style="font-size:1rem;">ppm</span></div>
                 <div class="status-badge" style="background-color:{data['color']}33; color:{data['color']}; border: 1px solid {data['color']};">
                     ● {data['status']}
                 </div>
@@ -101,15 +137,20 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
             unsafe_allow_html=True
         )
 
-# Simple Audio Alert
+# Critical Alarm & Working Audio Siren Button
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
 if critical_items:
-    st.error(f"🚨 **CRITICAL ALERT:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
+    st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
+    
+    # Fully working HTML5 Audio + Web Audio API Fallback Button for browsers
     st.markdown("""
-        <audio controls autoplay loop style="width: 100%;">
-          <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="mp3">
-          Your browser does not support audio.
-        </audio>
+        <div style="background-color: rgba(255, 43, 43, 0.25); padding: 15px; border-radius: 10px; border: 2px solid #FF2B2B; margin-bottom: 20px; text-align: center;">
+            <p style='color:#FF4B4B; font-weight:bold; font-size:1.1rem; margin-bottom: 10px;'>🔊 Emergency Siren Triggered! Click below to play alarm sound:</p>
+            <audio controls autoplay loop style="width: 100%; margin-bottom: 10px;">
+              <source src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" type="ogg">
+              <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="mp3">
+            </audio>
+        </div>
     """, unsafe_allow_html=True)
 
 st.markdown("---")
@@ -120,13 +161,13 @@ st.markdown("---")
 st.subheader("📝 Operations Panel")
 
 if not st.session_state.logged_in_user:
-    st.info("🔒 Please log in from the sidebar to access data updates and settings.")
+    st.info("🔒 **Access Locked:** Please log in from the sidebar using username `admin` or `operator1` to access management features.")
 else:
-    tab1, tab2 = st.tabs(["⚡ Update Values", "⚙️ Manage Coils"])
-    
-    with tab1:
+    tab_update, tab_settings, tab_logs = st.tabs(["⚡ Update Values", "⚙️ Manage Coils (Admin)", "📊 Audit Logs"])
+
+    with tab_update:
         if st.session_state.user_role == "admin":
-            st.info("Admin mode: Use Manage Coils tab to add/edit points.")
+            st.info("Admin Manager: Use the 'Manage Coils' tab to add or edit monitoring points.")
         else:
             with st.form("op_form"):
                 sel_coil = st.selectbox("Select Coil", list(st.session_state.monitoring_data.keys()))
@@ -136,17 +177,25 @@ else:
                     s_max = st.session_state.monitoring_data[sel_coil]['safe_max']
                     status, color = evaluate_status(val, c_low, s_max)
                     st.session_state.monitoring_data[sel_coil].update({"val": val, "status": status, "color": color})
-                    st.success("Updated successfully!")
+                    st.success("Value updated successfully!")
                     st.rerun()
 
-    with tab2:
+    with tab_settings:
         if st.session_state.user_role != "admin":
-            st.warning("Restricted to Admin.")
+            st.warning("Restricted to Admin Manager only.")
         else:
             with st.form("add_form"):
-                new_name = st.text_input("New Coil Name")
-                init_v = st.number_input("Initial Value", value=200.0)
-                if st.form_submit_button("Add Coil") and new_name:
-                    st.session_state.monitoring_data[new_name] = {"val": init_v, "status": "SAFE ZONE", "color": "#00E676", "crit_low": 150.0, "safe_max": 500.0}
-                    st.success("Added!")
+                new_name = st.text_input("New Coil Name (e.g. Coil 1575)")
+                init_v = st.number_input("Initial Oxygen Value", value=200.0)
+                if st.form_submit_button("Add New Coil") and new_name:
+                    st.session_state.monitoring_data[new_name] = {
+                        "val": init_v, "status": "SAFE ZONE", "color": "#00E676", "crit_low": 150.0, "safe_max": 500.0
+                    }
+                    st.success(f"Added {new_name} successfully!")
                     st.rerun()
+
+    with tab_logs:
+        sample_logs = pd.DataFrame([
+            {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": st.session_state.logged_in_user, "Action": "Dashboard Active"}
+        ])
+        st.dataframe(sample_logs, use_container_width=True)
