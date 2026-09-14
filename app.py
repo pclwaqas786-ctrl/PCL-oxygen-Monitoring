@@ -8,19 +8,24 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- GOOGLE SHEETS CONNECTION SETUP (Direct JSON Approach - No Secrets Error) ---
+# --- GOOGLE SHEETS CONNECTION SETUP ---
 
 
 def log_to_google_sheet(timestamp, item_name, val, status):
   try:
-    # Yeh direct credentials hain, ab Streamlit secrets ki zaroorat nahi hai
+    private_key_str = """-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC65E6ESFTP5M
+VRIpUeBvzsMDHhFIy9Rs9vU/BxM1sywK8Hvi4MKRe38e3fpqSMuFAyCpWpY97
+33PzQ5GDyKr8ndjHL04oZgockTkUxa0IebmjnlOUflI8JZzDzf5Qrff3ZHNw9dK
+oN9Tyare04san6iZbqBr5tcFRXYbbrELq7Hjgt705h5DZhCCBnkzU8PMPg9yj2B
+T4ZSmCYnEGLMigadIQKBgGkDC8nLdDjq5oDQg6
+-----END PRIVATE KEY-----"""
+
     creds_dict = {
         "type": "service_account",
         "project_id": "waqaspcl",
         "private_key_id": "1cff496f81f60b91096b89f9987d2128dbcd810",
-        "private_key": (
-            "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC65E6ESFTP5M\nVRIpUeBvzsMDHhFIy9Rs9vU/BxM1sywK8Hvi4MKRe38e3fpqSMuFAyCpWpY97\n33PzQ5GDyKr8ndjHL04oZgockTkUxa0IebmjnlOUflI8JZzDzf5Qrff3ZHNw9dK\noN9Tyare04san6iZbqBr5tcFRXYbbrELq7Hjgt705h5DZhCCBnkzU8PMPg9yj2B\nT4ZSmCYnEGLMigadIQKBgGkDC8nLdDjq5oDQg6\n-----END PRIVATE KEY-----"
-        ),
+        "private_key": private_key_str.strip(),
         "client_email": "oxygen-logger@waqaspcl.iam.gserviceaccount.com",
         "client_id": "111367517832135465056",
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
