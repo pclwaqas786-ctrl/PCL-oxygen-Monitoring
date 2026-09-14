@@ -13,7 +13,7 @@ if "logged_in" not in st.session_state:
 if "monitoring_points" not in st.session_state:
   st.session_state.monitoring_points = [
       {"name": "CR-1586 (Top/Tail)", "val": 449.0},
-      {"name": "CR-1601 (Top End)", "val": 107.0},
+      {"name": "CR-1602 (Top End)", "val": 107.0},
       {"name": "CR-1603 (Top End)", "val": 577.0},
       {"name": "Shaft Furnace (SF-6)", "val": 292.0},
       {"name": "Tundish-03 Sample", "val": 512.0},
@@ -29,29 +29,30 @@ if "limits" not in st.session_state:
 
 # --- HEADER TITLE ---
 st.title("🏭 CCR Pakistan Cable (CCR Plant) - Oxygen & Coil Monitoring")
-st.markdown("Real-time oxygen tracking system with admin security.")
+st.markdown("Real-time oxygen tracking system with role-based access.")
 
-# --- SIDEBAR: ADMIN LOGIN ---
-st.sidebar.header("🔐 Admin Security Panel")
+# --- SIDEBAR: AUTHENTICATION & CONTROLS ---
+st.sidebar.header("🔐 User / Admin Panel")
+
 if not st.session_state.logged_in:
+  st.sidebar.info("Viewing as Normal User (Read-Only Mode)")
   admin_pass = st.sidebar.text_input("Enter Admin Password", type="password")
-  if st.sidebar.button("Login"):
-    if admin_pass == "admin123":  # Yahan aap apna marzi ka password rakh sakte hain
+  if st.sidebar.button("Login as Admin"):
+    if admin_pass == "admin123":  # Aap yahan apna password change kar sakte hain
       st.session_state.logged_in = True
-      st.sidebar.success("Logged in successfully!")
       st.rerun()
     else:
-      st.sidebar.error("Wrong Password!")
+      st.sidebar.error("Incorrect Password!")
 else:
-  st.sidebar.success("Status: Logged In as Admin ✅")
+  st.sidebar.success("Logged in as ADMIN ✅")
   if st.sidebar.button("Logout"):
     st.session_state.logged_in = False
     st.rerun()
 
-# --- ADMIN CONTROLS (Only visible after login) ---
+# --- ADMIN-ONLY SETTINGS & MANAGEMENT ---
 if st.session_state.logged_in:
   st.sidebar.markdown("---")
-  st.sidebar.subheader("⚙️ Edit Limits & Thresholds")
+  st.sidebar.subheader("⚙️ Admin Settings: Limits")
   st.session_state.limits["normal_min"] = st.sidebar.number_input(
       "Normal Min", value=st.session_state.limits["normal_min"]
   )
@@ -66,9 +67,8 @@ if st.session_state.logged_in:
   )
 
   st.sidebar.markdown("---")
-  st.sidebar.subheader("📋 Add / Delete / Edit Points")
-
-  new_point = st.sidebar.text_input("Add New Coil / Furnace")
+  st.sidebar.subheader("📋 Admin: Add / Delete Points")
+  new_point = st.sidebar.text_input("Add New Coil / Furnace / Tundish")
   if st.sidebar.button("Add Point"):
     if new_point:
       st.session_state.monitoring_points.append(
@@ -89,8 +89,17 @@ if st.session_state.logged_in:
     if st.sidebar.button(f"Del {item['name']}", key=f"del_{i}"):
       st.session_state.monitoring_points.pop(i)
       st.rerun()
+else:
+  # Normal User can only update current values quickly from sidebar without deleting points
+  st.sidebar.markdown("---")
+  st.sidebar.subheader("⚡ Quick Value Update")
+  for i, item in enumerate(st.session_state.monitoring_points):
+    item["val"] = st.sidebar.number_input(
+        f"{item['name']}", value=float(item["val"]), key=f"user_val_{i}"
+    )
 
-# --- STATUS CHECK FUNCTION ---
+
+# --- STATUS FUNCTION ---
 any_high_alert = False
 
 
@@ -98,14 +107,22 @@ def get_oxygen_status(val, lim):
   global any_high_alert
   if val < lim["normal_min"] or val > lim["high_alert"]:
     any_high_alert = True
-    return "🔴 KHATRA (Critical Alert)", "#ff4b4b", "Oxygen out of limits!"
+    return (
+        "🔴 CRITICAL ALERT",
+        "#ff4b4b",
+        "Oxygen level out of safe limits!",
+    )
   elif lim["normal_min"] <= val <= lim["normal_max"]:
-    return "🟢 THEEK (Safe Zone)", "#09ab3b", "Normal safe range."
+    return "🟢 SAFE ZONE", "#09ab3b", "Normal safe range."
   elif lim["normal_max"] < val <= lim["warning_max"]:
     return "🟡 CAUTION (Yellow Zone)", "#f6b93b", "Elevated range."
   else:
     any_high_alert = True
-    return "🔴 KHATRA (Alert)", "#ff4b4b", "Critical level!"
+    return (
+        "🔴 CRITICAL ALERT",
+        "#ff4b4b",
+        "Oxygen level out of safe limits!",
+    )
 
 
 # --- MAIN DISPLAY CARDS ---
@@ -133,7 +150,7 @@ for idx, item in enumerate(st.session_state.monitoring_points):
 
 # --- AUDIO ALERT ---
 if any_high_alert:
-  st.error("🚨 HIGH ALERT! Critical oxygen level detected!")
+  st.error("🚨 HIGH ALERT! Critical oxygen level detected in the plant!")
   st.markdown(
       """
         <audio autoplay>
