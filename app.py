@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# INITIALIZE SESSION STATE STORE (PERMANENT PERSISTENCE)
+# INITIALIZE SESSION STATE STORE
 # ---------------------------------------------------------
 if "store" not in st.session_state:
   st.session_state.store = {
@@ -42,8 +42,8 @@ if "store" not in st.session_state:
       },
       "monitoring_points": [
           {
-              "name": "CR Coil",
-              "coil_prefix": "CR-",
+              "name": "Coil Station 1",
+              "coil_prefix": "",
               "coil_num": "2002",
               "val": 249.01,
               "min": 200.0,
@@ -57,8 +57,8 @@ if "store" not in st.session_state:
           {
               "Timestamp": "2026-09-14 10:00:00",
               "Duty Shift": "Shift A (12 Hours)",
-              "Item": "CR Coil",
-              "Coil No": "CR-2002",
+              "Item": "Coil Station 1",
+              "Coil No": "2002",
               "Oxygen Level (ppm)": 249.01,
               "Status": "SAFE ZONE",
               "Updated By": "System",
@@ -309,9 +309,11 @@ alert_details = []
 for idx, pt in enumerate(store["monitoring_points"]):
   col = cols[idx % len(cols)]
   val = pt["val"]
-  prefix = pt.get("coil_prefix", "CR-")
+  prefix = pt.get("coil_prefix", "")
   c_num = pt.get("coil_num", "")
-  full_coil_display = f"{prefix}{c_num}"
+  full_coil_display = f"{prefix}{c_num}".strip()
+  if not full_coil_display:
+    full_coil_display = "N/A"
 
   if val < pt["norm_min"]:
     status_label = "CRITICAL ALERT (Red)"
@@ -483,17 +485,17 @@ if st.session_state.logged_in:
       with up_col2:
         st.markdown(
             "<label style='font-size:14px; font-weight:600; color:#ffffff;'>2."
-            " Enter Coil Number</label>",
+            " Enter Coil Number / Code</label>",
             unsafe_allow_html=True,
         )
         col_p1, col_p2 = st.columns([1, 2])
+        curr_prefix = current_pt.get("coil_prefix", "")
         with col_p1:
-          st.markdown(
-              "<div"
-              " style='background-color:#334155; padding:8px 10px;"
-              " border-radius:6px; text-align:center; font-weight:bold;"
-              f" color:#38bdf8;'>{current_pt.get('coil_prefix', 'CR-')}</div>",
-              unsafe_allow_html=True,
+          new_coil_prefix = st.text_input(
+              "Prefix",
+              value=curr_prefix,
+              label_visibility="collapsed",
+              key="update_coil_prefix_input",
           )
         with col_p2:
           new_coil_num = st.text_input(
@@ -512,15 +514,12 @@ if st.session_state.logged_in:
             key="update_oxygen_val",
         )
 
-      st.info(
-          f"**Limits for {current_pt['name']}:** Normal Max:"
-          f" {current_pt['norm_max']} ppm | Caution Max:"
-          f" {current_pt['caution_max']} ppm"
-      )
-
       if st.button("Submit & Save Reading", type="primary"):
-        full_coil_str = f"{current_pt.get('coil_prefix', 'CR-')}{new_coil_num}"
+        current_pt["coil_prefix"] = new_coil_prefix
         current_pt["coil_num"] = new_coil_num
+        full_coil_str = f"{new_coil_prefix}{new_coil_num}".strip()
+        if not full_coil_str:
+          full_coil_str = "N/A"
         current_pt["val"] = new_val
 
         if new_val < current_pt["norm_min"]:
@@ -568,13 +567,13 @@ if st.session_state.logged_in:
         adm_pt = store["monitoring_points"][adm_edit_idx]
 
         adm_new_name = st.text_input(
-            "Edit Coil/Point Name",
+            "Edit Station / Point Name",
             value=adm_pt["name"],
             key=f"adm_name_{adm_edit_idx}",
         )
         adm_new_prefix = st.text_input(
-            "Default Prefix (e.g. CR-, SF-)",
-            value=adm_pt.get("coil_prefix", "CR-"),
+            "Prefix (Leave empty if no CR required)",
+            value=adm_pt.get("coil_prefix", ""),
             key=f"adm_pref_{adm_edit_idx}",
         )
         adm_new_min = st.number_input(
@@ -622,9 +621,13 @@ if st.session_state.logged_in:
       st.markdown("---")
       st.markdown("#### ➕ Add New Monitoring Point / Coil")
       add_p_name = st.text_input(
-          "Point Name (e.g. CR Coil)", value="CR Coil", key="new_p"
+          "Point Name (e.g. Coil Station)",
+          value="Coil Station",
+          key="new_p",
       )
-      add_p_pref = st.text_input("Prefix (e.g. CR-)", value="CR-", key="new_pr")
+      add_p_pref = st.text_input(
+          "Prefix (Leave empty if no CR)", value="", key="new_pr"
+      )
       add_p_coil = st.text_input(
           "Default Coil Number", value="2003", key="new_p_c"
       )
