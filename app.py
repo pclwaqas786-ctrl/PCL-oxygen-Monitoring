@@ -48,13 +48,13 @@ def evaluate_status(val, crit_low, safe_max):
         return "CAUTION ZONE", "#FF9100"
 
 # ---------------------------------------------------------
-# 3. Custom CSS & Wallpaper Styling
+# 3. Custom CSS & Large Font Styling
 # ---------------------------------------------------------
 bg_style = ""
 if st.session_state.bg_image:
     bg_style = f"""
     .stApp {{
-        background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{st.session_state.bg_image}");
+        background: linear-gradient(rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.88)), url("{st.session_state.bg_image}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -66,11 +66,13 @@ else:
 custom_css = f"""
 <style>
 {bg_style}
-.main-title {{ font-size: 2.2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }}
-.sub-title {{ font-size: 1rem; color: #E2E8F0; margin-bottom: 25px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }}
-.metric-card {{ background-color: rgba(15, 23, 42, 0.95); border: 2px solid rgba(255,255,255,0.2); border-radius: 14px; padding: 20px; text-align: center; color: white; box-shadow: 0 8px 32px rgba(0,0,0,0.6); margin-bottom: 15px; }}
-.metric-value {{ font-size: 2.5rem; font-weight: bold; margin: 10px 0; }}
-.status-badge {{ padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; display: inline-block; }}
+.main-title {{ font-size: 2.5rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }}
+.sub-title {{ font-size: 1.1rem; color: #E2E8F0; margin-bottom: 25px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }}
+.metric-card-large {{ background-color: rgba(15, 23, 42, 0.95); border: 2px solid rgba(255,255,255,0.25); border-radius: 16px; padding: 25px; text-align: center; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.7); margin-bottom: 20px; }}
+.metric-value-large {{ font-size: 2.8rem; font-weight: bold; margin: 12px 0; }}
+.metric-card-small {{ background-color: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 18px; text-align: center; color: white; margin-bottom: 15px; }}
+.metric-value-small {{ font-size: 2.0rem; font-weight: bold; margin: 8px 0; }}
+.status-badge {{ padding: 6px 14px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; display: inline-block; }}
 </style>
 """
 
@@ -120,31 +122,57 @@ if uploaded_wallpaper is not None:
     st.rerun()
 
 # ---------------------------------------------------------
-# 5. Header with Logo & Metric Cards
+# 5. Header with Logo & Split Metrics (Top 3 + Remaining Below)
 # ---------------------------------------------------------
 header_col1, header_col2 = st.columns([1, 10])
 with header_col1:
     if st.session_state.logo_image:
-        st.image(st.session_state.logo_image, width=90)
+        st.image(st.session_state.logo_image, width=100)
 with header_col2:
     st.markdown(f'<div class="main-title">{st.session_state.app_title}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="sub-title">{st.session_state.app_subtitle}</div>', unsafe_allow_html=True)
 
-cols = st.columns(len(st.session_state.monitoring_data))
-for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
-    with cols[idx]:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div style="font-size:0.95rem; font-weight:700; color:#FFFFFF;">{item}</div>
-                <div class="metric-value" style="color:{data['color']};">{data['val']} <span style="font-size:1rem;">ppm</span></div>
-                <div class="status-badge" style="background-color:{data['color']}33; color:{data['color']}; border: 1px solid {data['color']};">
-                    ● {data['status']}
+# Split items: First 3 on Top, Rest Below
+items_list = list(st.session_state.monitoring_data.items())
+top_items = items_list[:3]
+remaining_items = items_list[3:]
+
+# Display Top 3 Large Cards
+if top_items:
+    cols_top = st.columns(len(top_items))
+    for idx, (item, data) in enumerate(top_items):
+        with cols_top[idx]:
+            st.markdown(
+                f"""
+                <div class="metric-card-large">
+                    <div style="font-size:1.1rem; font-weight:700; color:#FFFFFF;">{item}</div>
+                    <div class="metric-value-large" style="color:{data['color']};">{data['val']} <span style="font-size:1.1rem;">ppm</span></div>
+                    <div class="status-badge" style="background-color:{data['color']}33; color:{data['color']}; border: 1px solid {data['color']};">
+                        ● {data['status']}
+                    </div>
                 </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+                """,
+                unsafe_allow_html=True
+            )
+
+# Display Remaining Coils Below in a Grid/Row
+if remaining_items:
+    st.markdown("<h4 style='color: #E2E8F0; margin-top: 15px;'>📍 Additional Monitoring Points</h4>", unsafe_allow_html=True)
+    cols_bottom = st.columns(len(remaining_items))
+    for idx, (item, data) in enumerate(remaining_items):
+        with cols_bottom[idx]:
+            st.markdown(
+                f"""
+                <div class="metric-card-small">
+                    <div style="font-size:0.95rem; font-weight:700; color:#FFFFFF;">{item}</div>
+                    <div class="metric-value-small" style="color:{data['color']};">{data['val']} <span style="font-size:0.95rem;">ppm</span></div>
+                    <div class="status-badge" style="background-color:{data['color']}33; color:{data['color']}; border: 1px solid {data['color']};">
+                        ● {data['status']}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 # Critical Alarm & Working Web Audio Siren
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
