@@ -8,18 +8,33 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- GOOGLE SHEETS CONNECTION SETUP ---
+# --- GOOGLE SHEETS CONNECTION SETUP (Direct JSON Approach - No Secrets Error) ---
 
 
 def log_to_google_sheet(timestamp, item_name, val, status):
   try:
-    secrets_dict = dict(st.secrets["gcp_service_account"])
-    if "private_key" in secrets_dict:
-      secrets_dict["private_key"] = secrets_dict["private_key"].replace(
-          "\\n", "\n"
-      )
+    # Yeh direct credentials hain, ab Streamlit secrets ki zaroorat nahi hai
+    creds_dict = {
+        "type": "service_account",
+        "project_id": "waqaspcl",
+        "private_key_id": "1cff496f81f60b91096b89f9987d2128dbcd810",
+        "private_key": (
+            "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC65E6ESFTP5M\nVRIpUeBvzsMDHhFIy9Rs9vU/BxM1sywK8Hvi4MKRe38e3fpqSMuFAyCpWpY97\n33PzQ5GDyKr8ndjHL04oZgockTkUxa0IebmjnlOUflI8JZzDzf5Qrff3ZHNw9dK\noN9Tyare04san6iZbqBr5tcFRXYbbrELq7Hjgt705h5DZhCCBnkzU8PMPg9yj2B\nT4ZSmCYnEGLMigadIQKBgGkDC8nLdDjq5oDQg6\n-----END PRIVATE KEY-----"
+        ),
+        "client_email": "oxygen-logger@waqaspcl.iam.gserviceaccount.com",
+        "client_id": "111367517832135465056",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": (
+            "https://www.googleapis.com/oauth2/v1/certs"
+        ),
+        "client_x509_cert_url": (
+            "https://www.googleapis.com/robot/v1/metadata/x509/oxygen-logger%40waqaspcl.iam.gserviceaccount.com"
+        ),
+        "universe_domain": "googleapis.com",
+    }
 
-    gc = gspread.service_account_from_dict(secrets_dict)
+    gc = gspread.service_account_from_dict(creds_dict)
     sheet = gc.open("CCR_Oxygen_Logs").sheet1
     sheet.append_row([timestamp, item_name, val, status])
   except Exception as e:
