@@ -1,5 +1,7 @@
 from datetime import datetime
 import base64
+import email.mime.text
+import smtplib
 import gspread
 import streamlit as st
 
@@ -9,21 +11,28 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- USER ACCOUNTS DATABASE ---
-USER_CREDENTIALS = {
-    "admin": {"pass": "admin123", "name": "Admin Manager", "role": "admin"},
-    "user1": {
-        "pass": "user123",
-        "name": "User 1 (Shift Officer)",
-        "role": "operator",
-    },
-    "user2": {"pass": "user223", "name": "User 2 (Operator)", "role": "operator"},
-    "user3": {
-        "pass": "user323",
-        "name": "User 3 (QC Inspector)",
-        "role": "operator",
-    },
-}
+# --- INITIAL USER DATABASE (STORED IN SESSION STATE FOR DYNAMIC MANAGEMENT) ---
+if "user_db" not in st.session_state:
+  st.session_state.user_db = {
+      "admin": {
+          "pass": "admin123",
+          "name": "Admin Manager",
+          "role": "admin",
+          "email": "admin@pcable.com",
+      },
+      "operator1": {
+          "pass": "user123",
+          "name": "Shift Officer 1",
+          "role": "operator",
+          "email": "op1@pcable.com",
+      },
+      "operator2": {
+          "pass": "user223",
+          "name": "Shift Operator 2",
+          "role": "operator",
+          "email": "op2@pcable.com",
+      },
+  }
 
 # --- GOOGLE SHEETS CONNECTION SETUP ---
 def log_to_google_sheet(timestamp, user_name, shift, item_name, val, status):
@@ -44,7 +53,7 @@ if "logged_in" not in st.session_state:
   st.session_state.user_info = None
 
 if "current_shift" not in st.session_state:
-  st.session_state.current_shift = "Shift A"
+  st.session_state.current_shift = "Shift A (12 Hours)"
 
 if "app_title" not in st.session_state:
   st.session_state.app_title = "CCR Pakistan Cable - Oxygen & Coil Monitoring"
@@ -142,6 +151,8 @@ st.markdown("---")
 # --- SIDEBAR: LOGIN & CONTROLS ---
 st.sidebar.header("🔐 User Login & Controls")
 
+SHIFT_OPTIONS = ["Shift A (12 Hours)", "Shift B (12 Hours)"]
+
 if not st.session_state.logged_in:
   st.sidebar.warning(
       "🔒 Read-Only Mode. Please log in to enable data updates."
@@ -152,20 +163,68 @@ if not st.session_state.logged_in:
       "Password", type="password", key="login_pass"
   )
   input_shift = st.sidebar.selectbox(
-      "Select Duty Shift", ["Shift A", "Shift B", "Shift C"], key="login_shift"
+      "Select Duty Shift", SHIFT_OPTIONS, key="login_shift"
   )
 
   if st.sidebar.button("Login to Dashboard"):
     if (
-        input_user in USER_CREDENTIALS
-        and USER_CREDENTIALS[input_user]["pass"] == input_pass
+        input_user in st.session_state.user_db
+        and st.session_state.user_db[input_user]["pass"] == input_pass
     ):
       st.session_state.logged_in = True
-      st.session_state.user_info = USER_CREDENTIALS[input_user]
+      st.session_state.user_info = st.session_state.user_db[input_user]
+      st.session_state.user_info["username"] = input_user
       st.session_state.current_shift = input_shift
       st.rerun()
     else:
       st.sidebar.error("❌ Incorrect Username or Password!")
+
+  # --- FORGOT PASSWORD EXPANDER ---
+  with st.sidebar.expander("🔑 Forgot Password?"):
+    st.caption("Enter your registered Username & Email to reset credentials.")
+    rec_user = st.text_input("Registered Username", key="rec_u")
+    rec_email = st.text_input("Registered Email Address", key="rec_e")
+
+    if st.button("Recover Password"):
+      if (
+          rec_user in st.session_state.user_db
+          and st.session_state.user_db[rec_user]["email"].lower()
+          == rec_email.strip().lower()
+      ):
+        # Check if SMTP is configured in Streamlit Secrets
+        if "smtp" in st.secrets:
+          try:
+            msg = email.mime.text.MIMEText(
+                f"Hello {st.session_state.user_db[rec_user]['name']},\n\nYour"
+                " password for CCR Oxygen Monitoring Dashboard is:"
+                f" {st.session_state.user_db[rec_user]['pass']}\n\nRegards,\nSystem"
+                " Admin"
+            )
+            msg["Subject"] = "Password Recovery - CCR Monitoring System"
+            msg["From"] = st.secrets["smtp"]["email"]
+            msg["To"] = rec_email
+
+            with smtplib.SMTP_SSL(
+                st.secrets["smtp"]["server"], st.secrets["smtp"]["port"]
+            ) as server:
+              server.login(
+                  st.secrets["smtp"]["email"], st.secrets["smtp"]["password"]
+              )
+              server.sendmail(
+                  st.secrets["smtp"]["email"], [rec_email], msg.as_string()
+              )
+            st.success(f"Password reset email sent to {rec_email}!")
+          except Exception as ex:
+            st.error(f"Email Dispatch Error: {ex}")
+        else:
+          # Instant Fallback Password Display if SMTP secrets are not added yet
+          st.success(
+              f"🔑 Account Verified! Password for '{rec_user}' is:"
+              f" **{st.session_state.user_db[rec_user]['pass']}**"
+          )
+      else:
+        st.error("Invalid Username or Email address matching system records.")
+
 else:
   u_info = st.session_state.user_info
   st.sidebar.success(f"👤 **Logged in:** {u_info['name']}")
@@ -173,10 +232,8 @@ else:
 
   new_shift = st.sidebar.selectbox(
       "Change Shift",
-      ["Shift A", "Shift B", "Shift C"],
-      index=["Shift A", "Shift B", "Shift C"].index(
-          st.session_state.current_shift
-      ),
+      SHIFT_OPTIONS,
+      index=SHIFT_OPTIONS.index(st.session_state.current_shift),
   )
   st.session_state.current_shift = new_shift
 
@@ -248,6 +305,53 @@ if st.session_state.logged_in:
         bytes_data = bg_file.getvalue()
         base64_img = base64.b64encode(bytes_data).decode()
         st.session_state.bg_image = f"data:{bg_file.type};base64,{base64_img}"
+
+    # --- DYNAMIC USER MANAGEMENT PANEL (ADMIN ONLY) ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("👥 Admin: User Management")
+
+    with st.sidebar.expander("➕ Add New User Account"):
+      new_username = st.text_input("New Username", key="add_u_username")
+      new_password = st.text_input(
+          "New Password", type="password", key="add_u_password"
+      )
+      new_name = st.text_input("Display Full Name", key="add_u_name")
+      new_email = st.text_input("User Email", key="add_u_email")
+      new_role = st.selectbox(
+          "User Role", ["operator", "admin"], key="add_u_role"
+      )
+
+      if st.button("Create Account"):
+        if new_username and new_password and new_name:
+          if new_username in st.session_state.user_db:
+            st.error("Username already exists!")
+          else:
+            st.session_state.user_db[new_username] = {
+                "pass": new_password,
+                "name": new_name,
+                "role": new_role,
+                "email": new_email if new_email else "user@pcable.com",
+            }
+            st.success(f"User account '{new_username}' created successfully!")
+            st.rerun()
+        else:
+          st.error("Please fill in Username, Password, and Display Name.")
+
+    with st.sidebar.expander("📋 Existing System Users"):
+      for uname, udata in list(st.session_state.user_db.items()):
+        col_u1, col_u2 = st.columns([4, 1])
+        with col_u1:
+          st.markdown(
+              f"**{uname}** ({udata['name']})  \n*Role:* `{udata['role']}` |"
+              f" *Email:* {udata.get('email', 'N/A')}"
+          )
+        with col_u2:
+          if uname != "admin":  # Protect root admin from deletion
+            if st.button("🗑️", key=f"del_user_{uname}"):
+              del st.session_state.user_db[uname]
+              st.success(f"User '{uname}' deleted.")
+              st.rerun()
+        st.markdown("---")
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ Admin: Thresholds & Items")
