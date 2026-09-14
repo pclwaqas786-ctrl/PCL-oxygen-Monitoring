@@ -13,14 +13,12 @@ st.set_page_config(
 
 def log_to_google_sheet(timestamp, item_name, val, status):
   try:
-    gc = gspread.service_account(filename="credentials.json")
+    secrets_dict = dict(st.secrets["gcp_service_account"])
+    gc = gspread.service_account_from_dict(secrets_dict)
     sheet = gc.open("CCR_Oxygen_Logs").sheet1
     sheet.append_row([timestamp, item_name, val, status])
   except Exception as e:
-    st.error(
-        f"Google Sheet Logging Failed: {e}. (Tip: Check if your system time is"
-        " accurate and credentials.json is correct)"
-    )
+    st.error(f"Google Sheet Logging Failed: {e}")
 
 
 # --- SESSION STATE INITIALIZATION ---
@@ -195,7 +193,6 @@ else:
   st.sidebar.subheader("⚡ Quick Updates (Coil & Value)")
   for i, item in enumerate(st.session_state.monitoring_points):
     with st.sidebar.expander(f"Update: {item['name']}"):
-      # Coil name badlne ka option aam user ke paas bhi rakh diya hai
       item["name"] = st.text_input(
           "Coil Name", item["name"], key=f"user_name_{i}"
       )
