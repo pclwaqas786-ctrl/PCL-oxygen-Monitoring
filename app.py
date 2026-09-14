@@ -1,6 +1,5 @@
 from datetime import datetime
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 import streamlit as st
 
 st.set_page_config(
@@ -9,52 +8,77 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- GOOGLE SHEETS CONNECTION SETUP ---
+# --- GOOGLE SHEETS CONNECTION SETUP (Updated & Robust) ---
 
 
 def log_to_google_sheet(timestamp, item_name, val, status):
   try:
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    creds = ServiceAccountCredentials.from_json_keyfile_name(
-        "credentials.json", scope
-    )
-    client = gspread.authorize(creds)
-    sheet = client.open("CCR_Oxygen_Logs").sheet1
+    # Modern gspread service account authentication
+    gc = gspread.service_account(filename="credentials.json")
+    sheet = gc.open("CCR_Oxygen_Logs").sheet1
     sheet.append_row([timestamp, item_name, val, status])
   except Exception as e:
-    print(f"Google Sheet Logging Error: {e}")
+    st.error(f"Google Sheet Logging Failed: {e}")
 
 
 # --- SESSION STATE INITIALIZATION ---
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
 
+# Har item ke apne alag individual limits
 if "monitoring_points" not in st.session_state:
   st.session_state.monitoring_points = [
-      {"name": "CR-1586 (Top/Tail)", "val": 449.0},
-      {"name": "CR-1601 (Top End)", "val": 107.0},
-      {"name": "CR-1603 (Top End)", "val": 577.0},
-      {"name": "Shaft Furnace (SF-6)", "val": 292.0},
-      {"name": "Tundish-Sample", "val": 512.0},
+      {
+          "name": "CR-1586 (Top/Tail)",
+          "val": 449.0,
+          "min": 200.0,
+          "norm_min": 200.0,
+          "norm_max": 400.0,
+          "caution_max": 600.0,
+          "high": 600.0,
+      },
+      {
+          "name": "CR-1601 (Top End)",
+          "val": 107.0,
+          "min": 150.0,
+          "norm_min": 150.0,
+          "norm_max": 350.0,
+          "caution_max": 500.0,
+          "high": 500.0,
+      },
+      {
+          "name": "CR-1603 (Top End)",
+          "val": 577.0,
+          "min": 200.0,
+          "norm_min": 200.0,
+          "norm_max": 400.0,
+          "caution_max": 600.0,
+          "high": 600.0,
+      },
+      {
+          "name": "Shaft Furnace (SF-6)",
+          "val": 292.0,
+          "min": 180.0,
+          "norm_min": 180.0,
+          "norm_max": 380.0,
+          "caution_max": 550.0,
+          "high": 550.0,
+      },
+      {
+          "name": "Tundish-Sample",
+          "val": 512.0,
+          "min": 200.0,
+          "norm_min": 200.0,
+          "norm_max": 450.0,
+          "caution_max": 650.0,
+          "high": 650.0,
+      },
   ]
-
-# Master Limits (Customizable via Admin Panel)
-if "limits" not in st.session_state:
-  st.session_state.limits = {
-      "min_limit": 200.0,
-      "normal_min": 200.0,
-      "normal_max": 400.0,
-      "caution_max": 600.0,
-      "high_alert": 600.0,
-  }
 
 # --- HEADER TITLE ---
 st.title("🏭 CCR Pakistan Cable (CCR Plant) - Oxygen & Coil Monitoring")
 st.markdown(
-    "Real-time oxygen tracking system with customizable master limits and 24/7"
+    "Real-time oxygen tracking system with individual item thresholds and 24/7"
     " Google Sheets logging."
 )
 
@@ -65,7 +89,7 @@ if not st.session_state.logged_in:
   st.sidebar.info("Viewing as Normal User (Quick value updates enabled)")
   admin_pass = st.sidebar.text_input("Enter Admin Password", type="password")
   if st.sidebar.button("Login as Admin"):
-    if admin_pass == "admin123":  # Aap yahan apna password change kar sakte hain
+    if admin_pass == "admin123":
       st.session_state.logged_in = True
       st.rerun()
     else:
@@ -76,25 +100,22 @@ else:
     st.session_state.logged_in = False
     st.rerun()
 
-# --- STATUS FUNCTION WITH CUSTOM COLORS ---
+# --- STATUS FUNCTION FOR INDIVIDUAL ITEM LIMITS ---
 any_high_alert = False
 
 
-def get_oxygen_status(val, lim):
+def get_oxygen_status(val, item):
   global any_high_alert
-  # Min or High Alert -> Red
-  if val < lim["min_limit"] or val > lim["high_alert"]:
+  if val < item["min"] or val > item["high"]:
     any_high_alert = True
     return (
         "🔴 CRITICAL ALERT (Red)",
         "#ff4b4b",
         "Oxygen level out of safe limits!",
     )
-  # Normal Range -> Green
-  elif lim["normal_min"] <= val <= lim["normal_max"]:
+  elif item["norm_min"] <= val <= item["norm_max"]:
     return "🟢 SAFE ZONE (Green)", "#09ab3b", "Normal safe range."
-  # Caution Range -> Orange / Yellow
-  elif lim["normal_max"] < val <= lim["caution_max"]:
+  elif item["norm_max"] < val <= item["caution_max"]:
     return "🟠 CAUTION ZONE (Orange)", "#ff8800", "Elevated range, monitor closely."
   else:
     any_high_alert = True
@@ -105,66 +126,68 @@ def get_oxygen_status(val, lim):
     )
 
 
-# --- ADMIN-ONLY MASTER SETTINGS & MANAGEMENT ---
+# --- ADMIN PANEL (MASTER SETTINGS & INDIVIDUAL LIMITS) ---
 if st.session_state.logged_in:
   st.sidebar.markdown("---")
-  st.sidebar.subheader("⚙️ Admin: Master Limits Configuration")
-  st.session_state.limits["min_limit"] = st.sidebar.number_input(
-      "Minimum Limit (Below this = Red)",
-      value=st.session_state.limits["min_limit"],
-  )
-  st.session_state.limits["normal_min"] = st.sidebar.number_input(
-      "Normal Range Start", value=st.session_state.limits["normal_min"]
-  )
-  st.session_state.limits["normal_max"] = st.sidebar.number_input(
-      "Normal Range End (Green)", value=st.session_state.limits["normal_max"]
-  )
-  st.session_state.limits["caution_max"] = st.sidebar.number_input(
-      "Caution Max (Up to this = Orange)",
-      value=st.session_state.limits["caution_max"],
-  )
-  st.session_state.limits["high_alert"] = st.sidebar.number_input(
-      "High Alert Limit (Above this = Red)",
-      value=st.session_state.limits["high_alert"],
-  )
+  st.sidebar.subheader("⚙️ Admin: Manage Items & Thresholds")
 
-  st.sidebar.markdown("---")
-  st.sidebar.subheader("📋 Admin: Add / Delete Points")
-  new_point = st.sidebar.text_input("Add New Coil / Furnace / Tundish")
+  new_point = st.sidebar.text_input("Add New Point Name")
   if st.sidebar.button("Add Point"):
     if new_point:
-      st.session_state.monitoring_points.append(
-          {"name": new_point, "val": 300.0}
-      )
+      st.session_state.monitoring_points.append({
+          "name": new_point,
+          "val": 300.0,
+          "min": 200.0,
+          "norm_min": 200.0,
+          "norm_max": 400.0,
+          "caution_max": 600.0,
+          "high": 600.0,
+      })
       st.rerun()
 
+  st.sidebar.markdown("---")
   for i, item in enumerate(st.session_state.monitoring_points):
-    cols = st.sidebar.columns([3, 2])
-    with cols[0]:
+    with st.sidebar.expander(f"Edit: {item['name']}"):
       item["name"] = st.text_input(
-          f"N_{i}", item["name"], key=f"edit_name_{i}"
+          "Item Name", item["name"], key=f"name_{i}"
       )
-    with cols[1]:
       new_val = st.number_input(
-          f"V_{i}", value=float(item["val"]), key=f"edit_val_{i}"
+          "Current Value (ppm)", value=float(item["val"]), key=f"val_{i}"
       )
       if new_val != item["val"]:
         item["val"] = new_val
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        status_text, _, _ = get_oxygen_status(
-            new_val, st.session_state.limits
-        )
+        status_text, _, _ = get_oxygen_status(new_val, item)
         log_to_google_sheet(
             current_time, item["name"], new_val, status_text
         )
 
-    if st.sidebar.button(f"Del {item['name']}", key=f"del_{i}"):
-      st.session_state.monitoring_points.pop(i)
-      st.rerun()
+      item["min"] = st.number_input(
+          "Min Limit (Red)", value=float(item["min"]), key=f"min_{i}"
+      )
+      item["norm_min"] = st.number_input(
+          "Normal Min", value=float(item["norm_min"]), key=f"nmin_{i}"
+      )
+      item["norm_max"] = st.number_input(
+          "Normal Max (Green)", value=float(item["norm_max"]), key=f"nmax_{i}"
+      )
+      item["caution_max"] = st.number_input(
+          "Caution Max (Orange)",
+          value=float(item["caution_max"]),
+          key=f"cmax_{i}",
+      )
+      item["high"] = st.number_input(
+          "High Limit (Red)", value=float(item["high"]), key=f"high_{i}"
+      )
+
+      if st.button(f"Delete {item['name']}", key=f"del_{i}"):
+        st.session_state.monitoring_points.pop(i)
+        st.rerun()
+
 else:
-  # Normal User Value Updates with Google Sheets Logging
+  # NORMAL USER PANEL: Only Quick Value Updates
   st.sidebar.markdown("---")
-  st.sidebar.subheader("⚡ Quick Value Update")
+  st.sidebar.subheader("⚡ Quick Value Update (User Mode)")
   for i, item in enumerate(st.session_state.monitoring_points):
     new_val = st.sidebar.number_input(
         f"{item['name']}", value=float(item["val"]), key=f"user_val_{i}"
@@ -172,7 +195,7 @@ else:
     if new_val != item["val"]:
       item["val"] = new_val
       current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-      status_text, _, _ = get_oxygen_status(new_val, st.session_state.limits)
+      status_text, _, _ = get_oxygen_status(new_val, item)
       log_to_google_sheet(current_time, item["name"], new_val, status_text)
 
 
@@ -180,11 +203,10 @@ else:
 st.markdown("---")
 cols = st.columns(3)
 
-lims = st.session_state.limits
 for idx, item in enumerate(st.session_state.monitoring_points):
   title = item["name"]
   val = item["val"]
-  status_text, bg_color, message = get_oxygen_status(val, lims)
+  status_text, bg_color, message = get_oxygen_status(val, item)
 
   with cols[idx % 3]:
     st.markdown(
@@ -199,12 +221,12 @@ for idx, item in enumerate(st.session_state.monitoring_points):
         unsafe_allow_html=True,
     )
 
-# --- AUDIO ALERT ---
+# --- CONTINUOUS LOOPING JAIL ALARM SOUND ---
 if any_high_alert:
   st.error("🚨 HIGH ALERT! Critical oxygen level detected in the plant!")
   st.markdown(
       """
-        <audio autoplay>
+        <audio autoplay loop>
           <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
         </audio>
         """,
