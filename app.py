@@ -43,13 +43,13 @@ def evaluate_status(val, crit_low, safe_max):
         return "CAUTION ZONE", "#FF9100"
 
 # ---------------------------------------------------------
-# 3. Custom CSS & Readability Overlay Styling
+# 3. Custom CSS & High-Contrast Styling
 # ---------------------------------------------------------
 bg_style = ""
 if st.session_state.bg_image:
     bg_style = f"""
     .stApp {{
-        background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{st.session_state.bg_image}");
+        background: linear-gradient(rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.75)), url("{st.session_state.bg_image}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -61,11 +61,12 @@ else:
 custom_css = f"""
 <style>
 {bg_style}
-.main-title {{ font-size: 2.2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }}
-.sub-title {{ font-size: 1rem; color: #94A3B8; margin-bottom: 25px; }}
-.metric-card {{ background-color: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; text-align: center; color: white; box-shadow: 0px 4px 12px rgba(0,0,0,0.3); margin-bottom: 15px; }}
+.main-title {{ font-size: 2.2rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }}
+.sub-title {{ font-size: 1rem; color: #E2E8F0; margin-bottom: 25px; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }}
+.metric-card {{ background-color: rgba(15, 23, 42, 0.92); border: 2px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 20px; text-align: center; color: white; box-shadow: 0 8px 32px rgba(0,0,0,0.5); margin-bottom: 15px; }}
 .metric-value {{ font-size: 2.5rem; font-weight: bold; margin: 10px 0; }}
-.status-badge {{ padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }}
+.status-badge {{ padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; display: inline-block; }}
+.expander-box {{ background-color: rgba(30, 41, 59, 0.85); padding: 15px; border-radius: 10px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1); }}
 </style>
 """
 
@@ -142,7 +143,7 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
         st.markdown(
             f"""
             <div class="metric-card">
-                <div style="font-size:0.9rem; font-weight:600; color:#E2E8F0;">{item}</div>
+                <div style="font-size:0.95rem; font-weight:700; color:#FFFFFF;">{item}</div>
                 <div class="metric-value" style="color:{data['color']};">{data['val']} <span style="font-size:1rem;">ppm</span></div>
                 <div class="status-badge" style="background-color:{data['color']}33; color:{data['color']}; border: 1px solid {data['color']};">
                     ● {data['status']}
@@ -152,20 +153,30 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
             unsafe_allow_html=True
         )
 
-# Critical Alarm & Working Audio Player Section
+# Critical Alarm & Direct Browser Sound Synthesis
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
 if critical_items:
     if st.session_state.logged_in_user:
         st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
         
-        # Reliable working audio siren embed
+        # Built-in JavaScript Audio Beep Generator (Never fails, no external file needed)
         st.markdown("""
-            <p style='color:#FF4B4B; font-weight:bold; font-size:1.1rem;'>🔊 Emergency Siren Active! Play audio below:</p>
-            <audio controls autoplay loop style="width: 100%;">
-              <source src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" type="ogg">
-              <source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" type="mp3">
-              Your browser does not support the audio element.
-            </audio>
+            <div style="background-color: rgba(255, 43, 43, 0.2); padding: 12px; border-radius: 8px; border: 1px solid #FF2B2B; margin-bottom: 15px;">
+                <p style='color:#FF4B4B; font-weight:bold; font-size:1rem; margin-bottom: 8px;'>🔊 Emergency Siren Active!</p>
+                <button onclick="
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.value = 880;
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    setInterval(() => { osc.frequency.value = osc.frequency.value === 880 ? 587 : 880; }, 300);
+                " style="background-color: #FF2B2B; color: white; border: none; padding: 8px 16px; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                    🔔 Click Here to Start Alarm Sound
+                </button>
+            </div>
         """, unsafe_allow_html=True)
     else:
         st.warning(f"⚠️ Low Oxygen Level on `{', '.join(critical_items)}`. Please log in from sidebar to access alarms.")
@@ -274,7 +285,7 @@ else:
 
     with tab_logs:
         sample_logs = pd.DataFrame([
-            {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1", "Coil Name": "Coil 1572", "Oxygen Val": 249.0, "Status": "SAFE ZONE"},
-            {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2", "Coil Name": "Coil 1573", "Oxygen Val": 107.0, "Status": "CRITICAL LOW ALERT"}
+            {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1", "Coil Name": "Coil 1572", "Oxygen Val": 249, "Status": "SAFE ZONE"},
+            {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2", "Coil Name": "Coil 1573", "Oxygen Val": 107, "Status": "CRITICAL LOW ALERT"}
         ])
         st.dataframe(sample_logs, use_container_width=True)
