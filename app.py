@@ -7,14 +7,14 @@ import datetime
 # 1. Page Configuration
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Pakistan Cable (CCR) - Oxygen & Coil Monitoring",
+    page_title="Pakistan Cable (CCR) - Oxygen Monitoring",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ---------------------------------------------------------
-# 2. Session State Initialization
+# 2. Session State Initialization (Persistent Data)
 # ---------------------------------------------------------
 if "bg_image" not in st.session_state:
     st.session_state.bg_image = None
@@ -24,6 +24,11 @@ if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
+
+if "app_title" not in st.session_state:
+    st.session_state.app_title = "Pakistan Cable (CCR) - Oxygen & Coil Monitoring"
+if "app_subtitle" not in st.session_state:
+    st.session_state.app_subtitle = "Real-time oxygen tracking system with individual coil thresholds."
 
 if "monitoring_data" not in st.session_state:
     st.session_state.monitoring_data = {
@@ -49,7 +54,7 @@ bg_style = ""
 if st.session_state.bg_image:
     bg_style = f"""
     .stApp {{
-        background: linear-gradient(rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.82)), url("{st.session_state.bg_image}");
+        background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{st.session_state.bg_image}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -122,8 +127,8 @@ with header_col1:
     if st.session_state.logo_image:
         st.image(st.session_state.logo_image, width=90)
 with header_col2:
-    st.markdown('<div class="main-title">Pakistan Cable (CCR) - Oxygen & Coil Monitoring</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">Real-time oxygen tracking system with individual coil thresholds.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="main-title">{st.session_state.app_title}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sub-title">{st.session_state.app_subtitle}</div>', unsafe_allow_html=True)
 
 cols = st.columns(len(st.session_state.monitoring_data))
 for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
@@ -141,7 +146,7 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
             unsafe_allow_html=True
         )
 
-# Critical Alarm & 100% Working Built-in Browser Synthesizer Siren
+# Critical Alarm & Working Web Audio Siren
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
 if critical_items:
     st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
@@ -181,11 +186,11 @@ st.subheader("📝 Operations Panel")
 if not st.session_state.logged_in_user:
     st.info("🔒 **Access Locked:** Please log in from the sidebar using username `admin` or `operator1` to access management features.")
 else:
-    tab_update, tab_settings, tab_logs = st.tabs(["⚡ Update Values", "⚙️ Manage Coils (Admin)", "📊 Audit Logs"])
+    tab_update, tab_settings, tab_logs = st.tabs(["⚡ Update Values", "⚙️ Manage Coils & Title (Admin)", "📊 Audit Logs"])
 
     with tab_update:
         if st.session_state.user_role == "admin":
-            st.info("Admin Manager: Use the 'Manage Coils' tab to add or edit monitoring points.")
+            st.info("Admin Manager: Use the 'Manage Coils & Title' tab to edit titles, add or edit monitoring points.")
         else:
             with st.form("op_form"):
                 sel_coil = st.selectbox("Select Coil", list(st.session_state.monitoring_data.keys()))
@@ -202,7 +207,20 @@ else:
         if st.session_state.user_role != "admin":
             st.warning("Restricted to Admin Manager only.")
         else:
+            # Title & Subtitle Settings
+            with st.form("title_edit_form"):
+                st.write("✏️ **Edit Dashboard Titles:**")
+                new_title_input = st.text_input("Main Title", value=st.session_state.app_title)
+                new_subtitle_input = st.text_input("Sub Title", value=st.session_state.app_subtitle)
+                if st.form_submit_button("Save Titles"):
+                    st.session_state.app_title = new_title_input
+                    st.session_state.app_subtitle = new_subtitle_input
+                    st.success("Titles updated successfully!")
+                    st.rerun()
+
+            st.markdown("---")
             with st.form("add_form"):
+                st.write("➕ **Add New Coil:**")
                 new_name = st.text_input("New Coil Name (e.g. Coil 1575)")
                 init_v = st.number_input("Initial Oxygen Value", value=200.0)
                 if st.form_submit_button("Add New Coil") and new_name:
