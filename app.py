@@ -17,7 +17,10 @@ def log_to_google_sheet(timestamp, item_name, val, status):
     sheet = gc.open("CCR_Oxygen_Logs").sheet1
     sheet.append_row([timestamp, item_name, val, status])
   except Exception as e:
-    st.error(f"Google Sheet Logging Failed: {e}")
+    st.error(
+        f"Google Sheet Logging Failed: {e}. (Tip: Check if your system time is"
+        " accurate and credentials.json is correct)"
+    )
 
 
 # --- SESSION STATE INITIALIZATION ---
@@ -84,7 +87,9 @@ st.markdown(
 st.sidebar.header("🔐 User / Admin Panel")
 
 if not st.session_state.logged_in:
-  st.sidebar.info("Viewing as Normal User (Quick value updates enabled)")
+  st.sidebar.info(
+      "Viewing as Normal User (Quick value updates & Coil name editing enabled)"
+  )
   admin_pass = st.sidebar.text_input(
       "Enter Admin Password", type="password", key="admin_pass_input"
   )
@@ -149,7 +154,7 @@ if st.session_state.logged_in:
   for i, item in enumerate(st.session_state.monitoring_points):
     with st.sidebar.expander(f"Edit: {item['name']}"):
       item["name"] = st.text_input(
-          "Item Name", item["name"], key=f"name_{i}"
+          "Item / Coil Name", item["name"], key=f"name_{i}"
       )
       new_val = st.number_input(
           "Current Value (ppm)", value=float(item["val"]), key=f"val_{i}"
@@ -185,17 +190,25 @@ if st.session_state.logged_in:
         st.rerun()
 
 else:
+  # NORMAL USER PANEL: Quick Value Updates & Coil Name Editing
   st.sidebar.markdown("---")
-  st.sidebar.subheader("⚡ Quick Value Update (User Mode)")
+  st.sidebar.subheader("⚡ Quick Updates (Coil & Value)")
   for i, item in enumerate(st.session_state.monitoring_points):
-    new_val = st.sidebar.number_input(
-        f"{item['name']}", value=float(item["val"]), key=f"user_val_{i}"
-    )
-    if new_val != item["val"]:
-      item["val"] = new_val
-      current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-      status_text, _, _ = get_oxygen_status(new_val, item)
-      log_to_google_sheet(current_time, item["name"], new_val, status_text)
+    with st.sidebar.expander(f"Update: {item['name']}"):
+      # Coil name badlne ka option aam user ke paas bhi rakh diya hai
+      item["name"] = st.text_input(
+          "Coil Name", item["name"], key=f"user_name_{i}"
+      )
+      new_val = st.number_input(
+          "Value (ppm)", value=float(item["val"]), key=f"user_val_{i}"
+      )
+      if new_val != item["val"]:
+        item["val"] = new_val
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        status_text, _, _ = get_oxygen_status(new_val, item)
+        log_to_google_sheet(
+            current_time, item["name"], new_val, status_text
+        )
 
 
 # --- MAIN DISPLAY CARDS ---
@@ -205,7 +218,6 @@ cols = st.columns(3)
 for idx, item in enumerate(st.session_state.monitoring_points):
   title = item["name"]
   val = item["val"]
-  status_key = f"card_status_{idx}"
   status_text, bg_color, message = get_oxygen_status(val, item)
 
   with cols[idx % 3]:
