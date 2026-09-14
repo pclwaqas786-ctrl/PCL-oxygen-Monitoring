@@ -8,12 +8,11 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- GOOGLE SHEETS CONNECTION SETUP (Updated & Robust) ---
+# --- GOOGLE SHEETS CONNECTION SETUP ---
 
 
 def log_to_google_sheet(timestamp, item_name, val, status):
   try:
-    # Modern gspread service account authentication
     gc = gspread.service_account(filename="credentials.json")
     sheet = gc.open("CCR_Oxygen_Logs").sheet1
     sheet.append_row([timestamp, item_name, val, status])
@@ -25,7 +24,6 @@ def log_to_google_sheet(timestamp, item_name, val, status):
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
 
-# Har item ke apne alag individual limits
 if "monitoring_points" not in st.session_state:
   st.session_state.monitoring_points = [
       {
@@ -87,7 +85,9 @@ st.sidebar.header("🔐 User / Admin Panel")
 
 if not st.session_state.logged_in:
   st.sidebar.info("Viewing as Normal User (Quick value updates enabled)")
-  admin_pass = st.sidebar.text_input("Enter Admin Password", type="password")
+  admin_pass = st.sidebar.text_input(
+      "Enter Admin Password", type="password", key="admin_pass_input"
+  )
   if st.sidebar.button("Login as Admin"):
     if admin_pass == "admin123":
       st.session_state.logged_in = True
@@ -100,7 +100,7 @@ else:
     st.session_state.logged_in = False
     st.rerun()
 
-# --- STATUS FUNCTION FOR INDIVIDUAL ITEM LIMITS ---
+# --- STATUS FUNCTION ---
 any_high_alert = False
 
 
@@ -126,12 +126,12 @@ def get_oxygen_status(val, item):
     )
 
 
-# --- ADMIN PANEL (MASTER SETTINGS & INDIVIDUAL LIMITS) ---
+# --- ADMIN PANEL OR USER PANEL ---
 if st.session_state.logged_in:
   st.sidebar.markdown("---")
   st.sidebar.subheader("⚙️ Admin: Manage Items & Thresholds")
 
-  new_point = st.sidebar.text_input("Add New Point Name")
+  new_point = st.sidebar.text_input("Add New Point Name", key="new_point_input")
   if st.sidebar.button("Add Point"):
     if new_point:
       st.session_state.monitoring_points.append({
@@ -185,7 +185,6 @@ if st.session_state.logged_in:
         st.rerun()
 
 else:
-  # NORMAL USER PANEL: Only Quick Value Updates
   st.sidebar.markdown("---")
   st.sidebar.subheader("⚡ Quick Value Update (User Mode)")
   for i, item in enumerate(st.session_state.monitoring_points):
@@ -206,6 +205,7 @@ cols = st.columns(3)
 for idx, item in enumerate(st.session_state.monitoring_points):
   title = item["name"]
   val = item["val"]
+  status_key = f"card_status_{idx}"
   status_text, bg_color, message = get_oxygen_status(val, item)
 
   with cols[idx % 3]:
