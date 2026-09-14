@@ -297,8 +297,7 @@ else:
       if uploaded_logo:
         encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
         store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
-        st.success("Logo updated globally!")
-        st.rerun()
+        st.success("Logo uploaded successfully!")
 
       uploaded_bg = st.file_uploader(
           "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
@@ -306,8 +305,7 @@ else:
       if uploaded_bg:
         encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
         store["bg_image"] = f"data:image/jpeg;base64,{encoded_bg}"
-        st.success("Background wallpaper updated globally!")
-        st.rerun()
+        st.success("Background wallpaper updated successfully!")
 
       if store["logo_image"] or store["bg_image"]:
         if st.button("Reset Branding to Default"):
@@ -559,43 +557,51 @@ if st.session_state.logged_in:
     st.subheader("Add, Edit or Remove Monitoring Points")
 
     st.markdown("#### ✏️ Edit Existing Point / CR Name & Limits")
-    edit_pt_name = st.selectbox(
+
+    # Fixed index-based selection to prevent name updating failure
+    pt_names = [p["name"] for p in store["monitoring_points"]]
+    selected_edit_idx = st.selectbox(
         "Select Point/CR to Edit",
-        [p["name"] for p in store["monitoring_points"]],
-        key="edit_pt_select",
-    )
-    edit_pt = next(
-        p for p in store["monitoring_points"] if p["name"] == edit_pt_name
+        options=range(len(pt_names)),
+        format_func=lambda x: pt_names[x],
+        key="edit_pt_index_sel",
     )
 
-    # Use regular inputs instead of st.form to fix saving issues instantly
+    edit_pt = store["monitoring_points"][selected_edit_idx]
+
     new_edit_name = st.text_input(
-        "Edit Point / CR Name", value=edit_pt["name"], key="edit_name_input"
+        "Edit Point / CR Name",
+        value=edit_pt["name"],
+        key=f"edit_name_{selected_edit_idx}",
     )
     new_edit_min = st.number_input(
         "Minimum Safe (ppm)",
         value=float(edit_pt["norm_min"]),
-        key="edit_min_input",
+        key=f"edit_min_{selected_edit_idx}",
     )
     new_edit_norm_max = st.number_input(
         "Normal Max (ppm)",
         value=float(edit_pt["norm_max"]),
-        key="edit_norm_max_input",
+        key=f"edit_nmax_{selected_edit_idx}",
     )
     new_edit_caut_max = st.number_input(
         "Caution Max (ppm)",
         value=float(edit_pt["caution_max"]),
-        key="edit_caut_max_input",
+        key=f"edit_cmax_{selected_edit_idx}",
     )
 
     if st.button("Update Point Settings", type="primary"):
-      edit_pt["name"] = new_edit_name
-      edit_pt["norm_min"] = new_edit_min
-      edit_pt["min"] = new_edit_min
-      edit_pt["norm_max"] = new_edit_norm_max
-      edit_pt["caution_max"] = new_edit_caut_max
-      edit_pt["high"] = new_edit_caut_max
-      st.success(f"Successfully updated {new_edit_name}!")
+      store["monitoring_points"][selected_edit_idx]["name"] = new_edit_name
+      store["monitoring_points"][selected_edit_idx]["norm_min"] = new_edit_min
+      store["monitoring_points"][selected_edit_idx]["min"] = new_edit_min
+      store["monitoring_points"][selected_edit_idx]["norm_max"] = (
+          new_edit_norm_max
+      )
+      store["monitoring_points"][selected_edit_idx]["caution_max"] = (
+          new_edit_caut_max
+      )
+      store["monitoring_points"][selected_edit_idx]["high"] = new_edit_caut_max
+      st.success(f"Successfully updated to '{new_edit_name}'!")
       st.rerun()
 
     st.markdown("---")
