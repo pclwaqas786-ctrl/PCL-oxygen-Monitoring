@@ -108,28 +108,23 @@ else:
         else:
             st.sidebar.error("Invalid Username or Password")
 
-    st.sidebar.warning("🔒 Read-Only Mode. Please log in to manage or update data.")
+    st.sidebar.warning("🔒 Read-Only Mode. Please log in to unlock controls.")
 
-# --- SEPARATE LOGO & WALLPAPER UPLOADERS ---
+# Sidebar Customization (Logo & Wallpaper)
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎨 Customization")
 
-# 1. Company Logo Uploader
 uploaded_logo = st.sidebar.file_uploader("Upload Company Logo", type=["png", "jpg", "jpeg"], key="logo_uploader")
 if uploaded_logo is not None:
-    logo_bytes = uploaded_logo.read()
-    st.session_state.logo_image = base64.b64encode(logo_bytes).decode()
-    st.sidebar.success("Logo updated successfully!")
+    st.session_state.logo_image = base64.b64encode(uploaded_logo.read()).decode()
+    st.sidebar.success("Logo updated!")
 
-# Display Logo in Sidebar if uploaded
 if st.session_state.logo_image:
     st.sidebar.image(f"data:image/png;base64,{st.session_state.logo_image}", width=150, caption="Company Logo")
 
-# 2. Background Wallpaper Uploader
 uploaded_wallpaper = st.sidebar.file_uploader("Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_uploader")
 if uploaded_wallpaper is not None:
-    file_bytes = uploaded_wallpaper.read()
-    st.session_state.bg_image = base64.b64encode(file_bytes).decode()
+    st.session_state.bg_image = base64.b64encode(uploaded_wallpaper.read()).decode()
     st.sidebar.success("Background Wallpaper updated!")
 
 # ---------------------------------------------------------
@@ -154,7 +149,7 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
             unsafe_allow_html=True
         )
 
-# Critical Alarm & Sound Section
+# Critical Alarm & Sound Section (Only when logged in)
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
 if critical_items:
     if st.session_state.logged_in_user:
@@ -165,87 +160,90 @@ if critical_items:
             </audio>
         """
         st.markdown(siren_html, unsafe_allow_html=True)
-        st.warning("🔊 Emergency Siren Sound is Active!")
+        st.warning("🔊 Emergency Audio Siren Active!")
     else:
-        st.warning(f"⚠️ Low Oxygen Level on `{', '.join(critical_items)}`. Please log in to acknowledge and trigger audio alarms.")
+        st.warning(f"⚠️ Low Oxygen Level on `{', '.join(critical_items)}`. Please log in from sidebar to trigger audio alarms & controls.")
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 6. Operations Tabs
+# 6. Operations Tabs (Strictly Protected by Login Check)
 # ---------------------------------------------------------
-st.subheader("📝 Live Data Entry & Operations Panel")
+st.subheader("📝 Operations Panel")
 
-tab_update, tab_settings, tab_users, tab_logs = st.tabs([
-    "⚡ Update Values (Operators)", 
-    "⚙️ Edit Values & Thresholds (Admin/Settings)", 
-    "👥 User Management", 
-    "📊 Google Sheets Log History"
-])
+if not st.session_state.logged_in_user:
+    st.info("🔒 **Access Locked:** Please log in using your username and password from the sidebar to access data entry, settings, and logs.")
+else:
+    tab_update, tab_settings, tab_users, tab_logs = st.tabs([
+        "⚡ Update Values (Operators)", 
+        "⚙️ Edit Values & Thresholds (Admin)", 
+        "👥 User Management", 
+        "📊 Google Sheets Log History"
+    ])
 
-# TAB 1: OPERATOR UPDATE VALUES
-with tab_update:
-    if not st.session_state.logged_in_user:
-        st.warning("🔒 Please login from the sidebar to update values.")
-    elif st.session_state.user_role == "admin":
-        st.info("🚫 **Admin Notice:** Admin Manager cannot enter shift data. Use the 'Edit Values & Thresholds' tab for management.")
-    elif st.session_state.user_role == "operator":
-        st.write(f"**Active Operator:** `{st.session_state.logged_in_user}`")
-        with st.form("operator_entry_form"):
-            selected_item = st.selectbox("Select Monitoring Point", list(st.session_state.monitoring_data.keys()))
-            new_val = st.number_input("Oxygen Value (ppm)", min_value=0.0, max_value=2000.0, value=float(st.session_state.monitoring_data[selected_item]['val']), step=0.1)
-            
-            submit_btn = st.form_submit_button("Submit & Sync to Google Sheets")
-            if submit_btn:
-                c_low = st.session_state.monitoring_data[selected_item]['crit_low']
-                s_max = st.session_state.monitoring_data[selected_item]['safe_max']
-                status, color = evaluate_status(new_val, c_low, s_max)
+    # TAB 1: OPERATOR UPDATE VALUES
+    with tab_update:
+        if st.session_state.user_role == "admin":
+            st.info("🚫 **Admin Notice:** Admin Manager cannot enter shift data. Use the 'Edit Values & Thresholds' tab.")
+        else:
+            st.write(f"**Active Operator:** `{st.session_state.logged_in_user}`")
+            with st.form("operator_entry_form"):
+                selected_item = st.selectbox("Select Monitoring Point", list(st.session_state.monitoring_data.keys()))
+                new_val = st.number_input("Oxygen Value (ppm)", min_value=0.0, max_value=2000.0, value=float(st.session_state.monitoring_data[selected_item]['val']), step=0.1)
                 
-                st.session_state.monitoring_data[selected_item].update({"val": new_val, "status": status, "color": color})
-                st.success(f"Success! {selected_item} updated to {new_val} ppm ({status})")
-                st.rerun()
+                submit_btn = st.form_submit_button("Submit & Sync to Google Sheets")
+                if submit_btn:
+                    c_low = st.session_state.monitoring_data[selected_item]['crit_low']
+                    s_max = st.session_state.monitoring_data[selected_item]['safe_max']
+                    status, color = evaluate_status(new_val, c_low, s_max)
+                    
+                    st.session_state.monitoring_data[selected_item].update({"val": new_val, "status": status, "color": color})
+                    st.success(f"Success! {selected_item} updated to {new_val} ppm ({status})")
+                    st.rerun()
 
-# TAB 2: SETTINGS & EDITING VALUES (For Admin & Direct Edits)
-with tab_settings:
-    st.write("⚙️ **Directly modify current sensor values, critical limits, and safe zones:**")
-    
-    for item, data in st.session_state.monitoring_data.items():
-        with st.expander(f"📌 Settings for: {item} (Current: {data['val']} ppm)"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                e_val = st.number_input("Current Value", value=float(data['val']), key=f"set_val_{item}", step=0.1)
-            with col2:
-                e_crit = st.number_input("Critical Low Limit", value=float(data['crit_low']), key=f"set_crit_{item}", step=0.1)
-            with col3:
-                e_safe = st.number_input("Safe Max Limit", value=float(data['safe_max']), key=f"set_safe_{item}", step=0.1)
-            
-            if st.button(f"Save Changes for {item}", key=f"btn_save_{item}"):
-                new_status, new_color = evaluate_status(e_val, e_crit, e_safe)
-                st.session_state.monitoring_data[item].update({
-                    "val": e_val,
-                    "crit_low": e_crit,
-                    "safe_max": e_safe,
-                    "status": new_status,
-                    "color": new_color
-                })
-                st.success(f"Updated {item} successfully!")
-                st.rerun()
+    # TAB 2: SETTINGS & EDITING VALUES (Admin Only)
+    with tab_settings:
+        if st.session_state.user_role != "admin":
+            st.warning("🔒 **Restricted Area:** Only Admin Manager can modify sensor thresholds and critical limits.")
+        else:
+            st.write("⚙️ **Modify sensor values, critical limits, and safe zones:**")
+            for item, data in st.session_state.monitoring_data.items():
+                with st.expander(f"📌 Settings for: {item} (Current: {data['val']} ppm)"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        e_val = st.number_input("Current Value", value=float(data['val']), key=f"set_val_{item}", step=0.1)
+                    with col2:
+                        e_crit = st.number_input("Critical Low Limit", value=float(data['crit_low']), key=f"set_crit_{item}", step=0.1)
+                    with col3:
+                        e_safe = st.number_input("Safe Max Limit", value=float(data['safe_max']), key=f"set_safe_{item}", step=0.1)
+                    
+                    if st.button(f"Save Changes for {item}", key=f"btn_save_{item}"):
+                        new_status, new_color = evaluate_status(e_val, e_crit, e_safe)
+                        st.session_state.monitoring_data[item].update({
+                            "val": e_val,
+                            "crit_low": e_crit,
+                            "safe_max": e_safe,
+                            "status": new_status,
+                            "color": new_color
+                        })
+                        st.success(f"Updated {item} successfully!")
+                        st.rerun()
 
-# TAB 3: USER MANAGEMENT
-with tab_users:
-    st.subheader("👥 System Accounts Overview")
-    users_df = pd.DataFrame([
-        {"Username": "admin", "Name": "Admin Manager", "Role": "Admin (No Shift)", "Access": "Monitoring & Settings"},
-        {"Username": "operator1", "Name": "Shift Operator 1", "Role": "Operator", "Access": "Shift Data Logging"},
-        {"Username": "operator2", "Name": "Shift Operator 2", "Role": "Operator", "Access": "Shift Data Logging"}
-    ])
-    st.dataframe(users_df, use_container_width=True)
+    # TAB 3: USER MANAGEMENT
+    with tab_users:
+        st.subheader("👥 System Accounts Overview")
+        users_df = pd.DataFrame([
+            {"Username": "admin", "Name": "Admin Manager", "Role": "Admin", "Access": "Settings & Monitoring"},
+            {"Username": "operator1", "Name": "Shift Operator 1", "Role": "Operator", "Access": "Shift Data Logging"},
+            {"Username": "operator2", "Name": "Shift Operator 2", "Role": "Operator", "Access": "Shift Data Logging"}
+        ])
+        st.dataframe(users_df, use_container_width=True)
 
-# TAB 4: LOG HISTORY
-with tab_logs:
-    st.subheader("📋 24/7 Google Sheets Audit Trail")
-    sample_logs = pd.DataFrame([
-        {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1 (Shift A)", "Item Name": "CR-2002 (Top/Tail)", "Oxygen Val": 249.0, "Status": "SAFE ZONE"},
-        {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2 (Shift B)", "Item Name": "CR-1605 (Top End)", "Oxygen Val": 107.0, "Status": "CRITICAL LOW ALERT"}
-    ])
-    st.dataframe(sample_logs, use_container_width=True)
+    # TAB 4: LOG HISTORY
+    with tab_logs:
+        st.subheader("📋 24/7 Google Sheets Audit Trail")
+        sample_logs = pd.DataFrame([
+            {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1", "Item Name": "CR-2002 (Top/Tail)", "Oxygen Val": 249.0, "Status": "SAFE ZONE"},
+            {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2", "Item Name": "CR-1605 (Top End)", "Oxygen Val": 107.0, "Status": "CRITICAL LOW ALERT"}
+        ])
+        st.dataframe(sample_logs, use_container_width=True)
