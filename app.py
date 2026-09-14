@@ -151,17 +151,18 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
             unsafe_allow_html=True
         )
 
-# Critical Alarm & Audio Player Section
+# Critical Alarm & Working Audio Player Section
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
 if critical_items:
     if st.session_state.logged_in_user:
         st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
         
-        # Audio Player with controls so browser allows playing sound properly
+        # Working audio stream link for emergency siren beep
         st.markdown("""
-            <p style='color:red; font-weight:bold;'>🔊 Emergency Siren Active! Press Play below to hear audio:</p>
-            <audio controls autoplay>
-              <source src="https://www.soundjay.com/buttons/sounds/beep-01.mp3" type="audio/mpeg">
+            <p style='color:red; font-weight:bold;'>🔊 Emergency Siren Active! Click play below:</p>
+            <audio controls autoplay loop>
+              <source src="https://upload.wikimedia.org/wikipedia/commons/b/b3/Alarm_clock_ringing_bell.ogg" type="ogg">
+              <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" type="mp3">
               Your browser does not support the audio element.
             </audio>
         """, unsafe_allow_html=True)
