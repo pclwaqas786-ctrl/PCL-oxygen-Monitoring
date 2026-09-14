@@ -232,14 +232,30 @@ for idx, item in enumerate(st.session_state.monitoring_points):
         unsafe_allow_html=True,
     )
 
-# --- CONTINUOUS LOOPING ALARM SOUND ---
+# --- CONTINUOUS LOOPING ALARM SOUND (1 MINUTE DURATION & POPUP) ---
 if any_high_alert:
-  st.error("🚨 HIGH ALERT! Critical oxygen level detected in the plant!")
-  st.markdown(
-      """
-        <audio autoplay loop>
-          <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-        </audio>
-        """,
-      unsafe_allow_html=True,
+  st.error("🚨 CRITICAL HIGH ALERT! Oxygen level out of safe limits!")
+  st.toast(
+      "🚨 CRITICAL ALERT: Oxygen level critical limits se bahar hai!", icon="⚠️"
   )
+
+  alarm_html = """
+        <audio id="plant-alarm" loop autoplay>
+            <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+        </audio>
+        <script>
+            var alarm = document.getElementById("plant-alarm");
+            if (alarm) {
+                alarm.volume = 1.0;
+                alarm.play().catch(function(error) {
+                    console.log("Autoplay interaction restriction:", error);
+                });
+                
+                setTimeout(function() {
+                    alarm.pause();
+                    alarm.currentTime = 0;
+                }, 60000);
+            }
+        </script>
+    """
+  st.markdown(alarm_html, unsafe_allow_html=True)
