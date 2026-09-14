@@ -25,6 +25,7 @@ if "store" not in st.session_state:
       ),
       "bg_image": "",
       "logo_image": "",
+      "alarm_sound_b64": "",
       "user_db": {
           "admin": {
               "pass": "admin123",
@@ -236,6 +237,22 @@ else:
         st.rerun()
 
       st.markdown("---")
+      st.markdown("#### 🔊 Custom Alarm Sound Upload")
+      uploaded_audio = st.file_uploader(
+          "Upload Alarm Audio (mp3, wav, ogg)", type=["mp3", "wav", "ogg"], key="audio_up"
+      )
+      if uploaded_audio:
+        b64_audio = base64.b64encode(uploaded_audio.read()).decode()
+        store["alarm_sound_b64"] = f"data:audio/mp3;base64,{b64_audio}"
+        st.success("Custom alarm sound uploaded successfully!")
+
+      if store["alarm_sound_b64"]:
+        if st.button("Reset to Default Siren"):
+          store["alarm_sound_b64"] = ""
+          st.success("Reset to default alarm sound!")
+          st.rerun()
+
+      st.markdown("---")
       st.markdown("#### 🖼️ Company Logo & Wallpaper")
       uploaded_logo = st.file_uploader(
           "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
@@ -252,12 +269,6 @@ else:
         encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
         store["bg_image"] = f"data:image/jpeg;base64,{encoded_bg}"
         st.success("Background wallpaper updated successfully!")
-
-      if store["logo_image"] or store["bg_image"]:
-        if st.button("Reset Branding to Default"):
-          store["logo_image"] = ""
-          store["bg_image"] = ""
-          st.rerun()
 
 # ---------------------------------------------------------
 # HEADER SECTION (LOGO + TITLE)
@@ -348,8 +359,10 @@ for idx, pt in enumerate(store["monitoring_points"]):
     )
 
 # ---------------------------------------------------------
-# CRITICAL ALARM BANNER (EXTRA LOUD SIREN)
+# CRITICAL ALARM BANNER (CUSTOM SOUND OR DEFAULT LOUD SIREN)
 # ---------------------------------------------------------
+custom_sound_b64 = store.get("alarm_sound_b64", "")
+
 if st.session_state.logged_in and any_high_alert:
   alert_msg = " | ".join(alert_details)
   alarm_html = f"""
@@ -365,10 +378,21 @@ if st.session_state.logged_in and any_high_alert:
     var audioCtx = null;
     var sirenInterval = null;
     var isPlaying = false;
+    var customAudio = {json.dumps(custom_sound_b64)};
+    var audioObj = null;
+
+    if (customAudio) {{
+        audioObj = new Audio(customAudio);
+        audioObj.loop = true;
+    }}
 
     function toggleSiren() {{
         var btn = document.getElementById("alarmBtn");
         if (isPlaying) {{
+            if (customAudio && audioObj) {{
+                audioObj.pause();
+                audioObj.currentTime = 0;
+            }}
             if (sirenInterval) clearInterval(sirenInterval);
             sirenInterval = null;
             isPlaying = false;
@@ -378,37 +402,42 @@ if st.session_state.logged_in and any_high_alert:
             }}
             return;
         }}
-        try {{
-            var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-            if (!audioCtx) {{ audioCtx = new AudioCtxClass(); }}
-            if (audioCtx.state === 'suspended') {{ audioCtx.resume(); }}
-            isPlaying = true;
-            if (btn) {{
-                btn.innerText = "🚨 LOUD ALARM RINGING (CLICK TO MUTE) 🔊";
-                btn.style.backgroundColor = "#cc0000";
-            }}
-            var flip = false;
-            function playSirenTone() {{
-                if (!isPlaying) return;
-                try {{
-                    var osc = audioCtx.createOscillator();
-                    var gain = audioCtx.createGain();
-                    osc.type = 'sawtooth';
-                    var freq = flip ? 1150 : 700;
-                    flip = !flip;
-                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                    # Maximum loud gain setting
-                    gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.1, audioCtx.currentTime + 0.45);
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.45);
-                }} catch(e) {{}}
-            }}
-            playSirenTone();
-            sirenInterval = setInterval(playSirenTone, 450);
-        }} catch(err) {{}}
+
+        isPlaying = true;
+        if (btn) {{
+            btn.innerText = "🚨 LOUD ALARM RINGING (CLICK TO MUTE) 🔊";
+            btn.style.backgroundColor = "#cc0000";
+        }}
+
+        if (customAudio && audioObj) {{
+            audioObj.play().catch(function(e){{}});
+        }} else {{
+            try {{
+                var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+                if (!audioCtx) {{ audioCtx = new AudioCtxClass(); }}
+                if (audioCtx.state === 'suspended') {{ audioCtx.resume(); }}
+                var flip = false;
+                function playSirenTone() {{
+                    if (!isPlaying) return;
+                    try {{
+                        var osc = audioCtx.createOscillator();
+                        var gain = audioCtx.createGain();
+                        osc.type = 'sawtooth';
+                        var freq = flip ? 1150 : 700;
+                        flip = !flip;
+                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                        gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.1, audioCtx.currentTime + 0.45);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.45);
+                    }} catch(e) {{}}
+                }}
+                playSirenTone();
+                sirenInterval = setInterval(playSirenTone, 450);
+            }} catch(err) {{}}
+        }}
     }}
     </script>
     """
