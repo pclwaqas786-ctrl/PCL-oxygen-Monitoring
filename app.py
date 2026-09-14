@@ -42,7 +42,7 @@ if "store" not in st.session_state:
       },
       "monitoring_points": [
           {
-              "name": "Coil Station 1",
+              "name": "Coil",
               "coil_prefix": "",
               "coil_num": "2002",
               "val": 249.01,
@@ -57,8 +57,8 @@ if "store" not in st.session_state:
           {
               "Timestamp": "2026-09-14 10:00:00",
               "Duty Shift": "Shift A (12 Hours)",
-              "Item": "Coil Station 1",
-              "Coil No": "2002",
+              "Item": "Coil",
+              "Coil No": "",
               "Oxygen Level (ppm)": 249.01,
               "Status": "SAFE ZONE",
               "Updated By": "System",
