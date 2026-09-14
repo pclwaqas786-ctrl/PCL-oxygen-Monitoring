@@ -110,22 +110,24 @@ else:
 
     st.sidebar.warning("🔒 Read-Only Mode. Please log in to unlock controls.")
 
-# Sidebar Customization (Logo & Wallpaper)
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎨 Customization")
+# --- CUSTOMIZATION (ONLY VISIBLE AFTER LOGIN) ---
+if st.session_state.logged_in_user:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎨 Customization Panel")
 
-uploaded_logo = st.sidebar.file_uploader("Upload Company Logo", type=["png", "jpg", "jpeg"], key="logo_uploader")
-if uploaded_logo is not None:
-    st.session_state.logo_image = base64.b64encode(uploaded_logo.read()).decode()
-    st.sidebar.success("Logo updated!")
+    uploaded_logo = st.sidebar.file_uploader("Upload Company Logo", type=["png", "jpg", "jpeg"], key="logo_uploader")
+    if uploaded_logo is not None:
+        st.session_state.logo_image = f"data:image/png;base64,{base64.b64encode(uploaded_logo.read()).decode()}"
+        st.sidebar.success("Logo updated!")
 
-if st.session_state.logo_image:
-    st.sidebar.image(f"data:image/png;base64,{st.session_state.logo_image}", width=150, caption="Company Logo")
+    if st.session_state.logo_image:
+        st.sidebar.image(st.session_state.logo_image, width=150, caption="Company Logo")
 
-uploaded_wallpaper = st.sidebar.file_uploader("Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_uploader")
-if uploaded_wallpaper is not None:
-    st.session_state.bg_image = base64.b64encode(uploaded_wallpaper.read()).decode()
-    st.sidebar.success("Background Wallpaper updated!")
+    uploaded_wallpaper = st.sidebar.file_uploader("Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_uploader")
+    if uploaded_wallpaper is not None:
+        st.session_state.bg_image = f"data:image/png;base64,{base64.b64encode(uploaded_wallpaper.read()).decode()}"
+        st.sidebar.success("Background Wallpaper updated!")
+        st.rerun()
 
 # ---------------------------------------------------------
 # 5. Header & Metric Cards
@@ -149,25 +151,27 @@ for idx, (item, data) in enumerate(st.session_state.monitoring_data.items()):
             unsafe_allow_html=True
         )
 
-# Critical Alarm & Sound Section (Only when logged in)
+# Critical Alarm & Audio Player Section
 critical_items = [item for item, info in st.session_state.monitoring_data.items() if info['status'] == "CRITICAL LOW ALERT"]
 if critical_items:
     if st.session_state.logged_in_user:
         st.error(f"🚨 **CRITICAL EMERGENCY ALARM:** Low Oxygen Level detected on `{', '.join(critical_items)}`")
-        siren_html = """
-            <audio autoplay loop>
+        
+        # Audio Player with controls so browser allows playing sound properly
+        st.markdown("""
+            <p style='color:red; font-weight:bold;'>🔊 Emergency Siren Active! Press Play below to hear audio:</p>
+            <audio controls autoplay>
               <source src="https://www.soundjay.com/buttons/sounds/beep-01.mp3" type="audio/mpeg">
+              Your browser does not support the audio element.
             </audio>
-        """
-        st.markdown(siren_html, unsafe_allow_html=True)
-        st.warning("🔊 Emergency Audio Siren Active!")
+        """, unsafe_allow_html=True)
     else:
-        st.warning(f"⚠️ Low Oxygen Level on `{', '.join(critical_items)}`. Please log in from sidebar to trigger audio alarms & controls.")
+        st.warning(f"⚠️ Low Oxygen Level on `{', '.join(critical_items)}`. Please log in from sidebar to access alarms.")
 
 st.markdown("---")
 
 # ---------------------------------------------------------
-# 6. Operations Tabs (Strictly Protected by Login Check)
+# 6. Operations Tabs (Protected by Login)
 # ---------------------------------------------------------
 st.subheader("📝 Operations Panel")
 
@@ -181,7 +185,6 @@ else:
         "📊 Google Sheets Log History"
     ])
 
-    # TAB 1: OPERATOR UPDATE VALUES
     with tab_update:
         if st.session_state.user_role == "admin":
             st.info("🚫 **Admin Notice:** Admin Manager cannot enter shift data. Use the 'Edit Values & Thresholds' tab.")
@@ -201,7 +204,6 @@ else:
                     st.success(f"Success! {selected_item} updated to {new_val} ppm ({status})")
                     st.rerun()
 
-    # TAB 2: SETTINGS & EDITING VALUES (Admin Only)
     with tab_settings:
         if st.session_state.user_role != "admin":
             st.warning("🔒 **Restricted Area:** Only Admin Manager can modify sensor thresholds and critical limits.")
@@ -229,9 +231,7 @@ else:
                         st.success(f"Updated {item} successfully!")
                         st.rerun()
 
-    # TAB 3: USER MANAGEMENT
     with tab_users:
-        st.subheader("👥 System Accounts Overview")
         users_df = pd.DataFrame([
             {"Username": "admin", "Name": "Admin Manager", "Role": "Admin", "Access": "Settings & Monitoring"},
             {"Username": "operator1", "Name": "Shift Operator 1", "Role": "Operator", "Access": "Shift Data Logging"},
@@ -239,9 +239,7 @@ else:
         ])
         st.dataframe(users_df, use_container_width=True)
 
-    # TAB 4: LOG HISTORY
     with tab_logs:
-        st.subheader("📋 24/7 Google Sheets Audit Trail")
         sample_logs = pd.DataFrame([
             {"Timestamp": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), "User": "OPERATOR1", "Item Name": "CR-2002 (Top/Tail)", "Oxygen Val": 249.0, "Status": "SAFE ZONE"},
             {"Timestamp": "2026-09-14 17:50:49", "User": "OPERATOR2", "Item Name": "CR-1605 (Top End)", "Oxygen Val": 107.0, "Status": "CRITICAL LOW ALERT"}
