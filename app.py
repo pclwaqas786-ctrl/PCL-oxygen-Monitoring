@@ -1,510 +1,646 @@
-from datetime import datetime
 import base64
-import email.mime.text
-import smtplib
-import gspread
+import datetime
+import json
+import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
+# Set Page Config
 st.set_page_config(
-    page_title="CCR Oxygen & Coil Monitoring",
+    page_title="Pakistan Cable (CCR) - Oxygen & Coil Monitoring",
     page_icon="🏭",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# --- INITIAL USER DATABASE ---
-if "user_db" not in st.session_state:
-  st.session_state.user_db = {
-      "admin": {
-          "pass": "admin123",
-          "name": "Admin Manager",
-          "role": "admin",
-          "email": "admin@pcable.com",
+
+# ---------------------------------------------------------
+# GLOBAL SHARED STORE (PERMANENT PERSISTENCE ACROSS SESSIONS & LOGOUTS)
+# ---------------------------------------------------------
+@st.cache_resource
+def get_global_store():
+  return {
+      "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
+      "app_subtitle": (
+          "Real-time oxygen tracking system with individual item thresholds"
+          " and 24/7 Google Sheets logging."
+      ),
+      "bg_image": "",
+      "logo_image": "",
+      "user_db": {
+          "admin": {
+              "pass": "admin123",
+              "name": "Admin Manager",
+              "role": "admin",
+              "email": "admin@pcable.com",
+          },
+          "operator1": {
+              "pass": "user123",
+              "name": "Shift Officer 1",
+              "role": "operator",
+              "email": "op1@pcable.com",
+          },
+          "operator2": {
+              "pass": "user223",
+              "name": "Shift Operator 2",
+              "role": "operator",
+              "email": "op2@pcable.com",
+          },
       },
-      "operator1": {
-          "pass": "user123",
-          "name": "Shift Officer 1",
-          "role": "operator",
-          "email": "op1@pcable.com",
-      },
-      "operator2": {
-          "pass": "user223",
-          "name": "Shift Operator 2",
-          "role": "operator",
-          "email": "op2@pcable.com",
-      },
+      "monitoring_points": [
+          {
+              "name": "CR-2002 (Top/Tail)",
+              "val": 249.01,
+              "min": 200.0,
+              "norm_min": 200.0,
+              "norm_max": 400.0,
+              "caution_max": 600.0,
+              "high": 600.0,
+          },
+          {
+              "name": "CR-1605 (Top End)",
+              "val": 107.00,
+              "min": 150.0,
+              "norm_min": 150.0,
+              "norm_max": 350.0,
+              "caution_max": 500.0,
+              "high": 500.0,
+          },
+          {
+              "name": "CR-2486 (Top End)",
+              "val": 577.00,
+              "min": 200.0,
+              "norm_min": 200.0,
+              "norm_max": 400.0,
+              "caution_max": 600.0,
+              "high": 600.0,
+          },
+          {
+              "name": "Shaft Furnace (SF-6)",
+              "val": 292.00,
+              "min": 180.0,
+              "norm_min": 180.0,
+              "norm_max": 380.0,
+              "caution_max": 550.0,
+              "high": 550.0,
+          },
+          {
+              "name": "Tundish-Sample",
+              "val": 512.00,
+              "min": 200.0,
+              "norm_min": 200.0,
+              "norm_max": 450.0,
+              "caution_max": 650.0,
+              "high": 650.0,
+          },
+      ],
+      "log_history": [
+          {
+              "Timestamp": "2026-09-14 10:00:00",
+              "Duty Shift": "Shift A (12 Hours)",
+              "Item": "CR-2002 (Top/Tail)",
+              "Oxygen Level (ppm)": 249.01,
+              "Status": "SAFE ZONE",
+              "Updated By": "System",
+          },
+          {
+              "Timestamp": "2026-09-14 10:15:00",
+              "Duty Shift": "Shift A (12 Hours)",
+              "Item": "CR-1605 (Top End)",
+              "Oxygen Level (ppm)": 107.00,
+              "Status": "CRITICAL LOW ALERT",
+              "Updated By": "operator1",
+          },
+          {
+              "Timestamp": "2026-09-14 10:30:00",
+              "Duty Shift": "Shift A (12 Hours)",
+              "Item": "CR-2486 (Top End)",
+              "Oxygen Level (ppm)": 577.00,
+              "Status": "CAUTION ZONE",
+              "Updated By": "admin",
+          },
+      ],
   }
 
-# --- GOOGLE SHEETS LOGGING ---
-def log_to_google_sheet(timestamp, user_name, shift, item_name, val, status):
-  try:
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
-    gc = gspread.service_account_from_dict(creds_dict)
-    sheet = gc.open("CCR_Oxygen_Logs").sheet1
-    sheet.append_row([timestamp, user_name, shift, item_name, val, status])
-  except Exception as e:
-    st.error(f"Google Sheet Logging Failed: {e}")
+store = get_global_store()
 
-
-# --- SESSION STATE INITIALIZATION ---
+# Initialize session state for user authentication only
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
-  st.session_state.user_info = None
+if "username" not in st.session_state:
+  st.session_state.username = ""
+if "user_role" not in st.session_state:
+  st.session_state.user_role = ""
+if "duty_shift" not in st.session_state:
+  st.session_state.duty_shift = "Shift A (12 Hours)"
 
-if "current_shift" not in st.session_state:
-  st.session_state.current_shift = "Shift A (12 Hours)"
-
-if "app_title" not in st.session_state:
-  st.session_state.app_title = "Pakistan Cable - Oxygen & Coil Monitoring"
-
-if "app_subtitle" not in st.session_state:
-  st.session_state.app_subtitle = (
-      "Real-time oxygen tracking system with individual item thresholds"
-      " and 24/7 Google Sheets logging."
-  )
-
-if "bg_image" not in st.session_state:
-  st.session_state.bg_image = ""
-
-if "logo_image" not in st.session_state:
-  st.session_state.logo_image = ""
-
-if "monitoring_points" not in st.session_state:
-  st.session_state.monitoring_points = [
-      {
-          "name": "CR-2002 (Top/Tail)",
-          "val": 249.01,
-          "min": 200.0,
-          "norm_min": 200.0,
-          "norm_max": 400.0,
-          "caution_max": 600.0,
-          "high": 600.0,
-      },
-      {
-          "name": "CR-1605 (Top End)",
-          "val": 107.0,
-          "min": 150.0,
-          "norm_min": 150.0,
-          "norm_max": 350.0,
-          "caution_max": 500.0,
-          "high": 500.0,
-      },
-      {
-          "name": "CR-2486 (Top End)",
-          "val": 577.0,
-          "min": 200.0,
-          "norm_min": 200.0,
-          "norm_max": 400.0,
-          "caution_max": 600.0,
-          "high": 600.0,
-      },
-      {
-          "name": "Shaft Furnace (SF-6)",
-          "val": 292.0,
-          "min": 180.0,
-          "norm_min": 180.0,
-          "norm_max": 380.0,
-          "caution_max": 550.0,
-          "high": 550.0,
-      },
-      {
-          "name": "Tundish-Sample",
-          "val": 512.0,
-          "min": 200.0,
-          "norm_min": 200.0,
-          "norm_max": 450.0,
-          "caution_max": 650.0,
-          "high": 650.0,
-      },
-  ]
-
-# --- PERSISTENT BACKGROUND WALLPAPER ---
-if st.session_state.bg_image:
+# ---------------------------------------------------------
+# CUSTOM STYLING & BACKGROUND INJECTION
+# ---------------------------------------------------------
+bg_css = ""
+if store["bg_image"]:
   bg_css = f"""
     <style>
     .stApp {{
-        background-image: linear-gradient(rgba(14, 17, 23, 0.88), rgba(14, 17, 23, 0.88)), url("{st.session_state.bg_image}");
+        background: url("{store['bg_image']}") no-repeat center center fixed;
         background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
     }}
     </style>
     """
-  st.markdown(bg_css, unsafe_allow_html=True)
+else:
+  bg_css = """
+    <style>
+    .stApp {
+        background-color: #f7f9fc;
+    }
+    </style>
+    """
 
-# --- HEADER DISPLAY ---
-col_logo, col_title = st.columns([1, 6])
+st.markdown(bg_css, unsafe_allow_html=True)
+st.markdown(
+    """
+<style>
+.main-card {
+    background-color: #262626;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+.card-title {
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #ffffff;
+    text-align: center;
+}
+.card-val-green {
+    font-size: 42px;
+    font-weight: 800;
+    color: #2ecc71;
+    text-align: center;
+    margin: 10px 0;
+}
+.card-val-orange {
+    font-size: 42px;
+    font-weight: 800;
+    color: #f39c12;
+    text-align: center;
+    margin: 10px 0;
+}
+.card-val-red {
+    font-size: 42px;
+    font-weight: 800;
+    color: #e74c3c;
+    text-align: center;
+    margin: 10px 0;
+}
+.badge-safe {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 13px;
+    display: inline-block;
+}
+.badge-caution {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 13px;
+    display: inline-block;
+}
+.badge-critical {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 13px;
+    display: inline-block;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
-with col_logo:
-  if st.session_state.logo_image:
-    st.image(st.session_state.logo_image, width=100)
+# ---------------------------------------------------------
+# SIDEBAR CONTROLS (LOGIN & NAVIGATION)
+# ---------------------------------------------------------
+st.sidebar.markdown("### 🔐 User Login & Controls")
+
+if not st.session_state.logged_in:
+  st.sidebar.warning("🔒 Read-Only Mode. Please log in to enable data updates.")
+  input_user = st.sidebar.text_input("Username", key="login_user")
+  input_pass = st.sidebar.text_input("Password", type="password", key="login_pass")
+  st.session_state.duty_shift = st.sidebar.selectbox(
+      "Select Duty Shift",
+      ["Shift A (12 Hours)", "Shift B (12 Hours)", "Shift C (8 Hours)"],
+      key="shift_sel",
+  )
+
+  if st.sidebar.button("Login to Dashboard", type="primary"):
+    if (
+        input_user in store["user_db"]
+        and store["user_db"][input_user]["pass"] == input_pass
+    ):
+      st.session_state.logged_in = True
+      st.session_state.username = input_user
+      st.session_state.user_role = store["user_db"][input_user]["role"]
+      st.sidebar.success(f"Welcome {store['user_db'][input_user]['name']}!")
+      st.rerun()
+    else:
+      st.sidebar.error("Invalid Username or Password!")
+
+  with st.sidebar.expander("🔑 Forgot Password?"):
+    st.write(
+        "Contact Admin Manager at `admin@pcable.com` to reset your credentials."
+    )
+else:
+  user_info = store["user_db"].get(
+      st.session_state.username,
+      {"name": st.session_state.username, "role": "operator"},
+  )
+  st.sidebar.success(
+      f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
+  )
+  st.sidebar.info(f"Active Shift: **{st.session_state.duty_shift}**")
+
+  if st.sidebar.button("Logout", type="secondary"):
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.user_role = ""
+    st.rerun()
+
+  st.sidebar.markdown("---")
+
+  # ADMIN ONLY SETTINGS PANEL IN SIDEBAR
+  if st.session_state.user_role == "admin":
+    with st.sidebar.expander("⚙️ Admin Settings & Branding"):
+      st.markdown("#### App Title Settings")
+      new_title = st.text_input("Main Title", value=store["app_title"])
+      new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
+      if st.button("Save Title Settings"):
+        store["app_title"] = new_title
+        store["app_subtitle"] = new_subtitle
+        st.success("Title updated successfully!")
+        st.rerun()
+
+      st.markdown("---")
+      st.markdown("#### 🖼️ Company Logo & Wallpaper")
+      uploaded_logo = st.file_uploader(
+          "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"]
+      )
+      if uploaded_logo:
+        encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
+        store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
+        st.success("Logo updated globally!")
+        st.rerun()
+
+      uploaded_bg = st.file_uploader(
+          "Upload Background Wallpaper", type=["png", "jpg", "jpeg"]
+      )
+      if uploaded_bg:
+        encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
+        store["bg_image"] = f"data:image/jpeg;base64,{encoded_bg}"
+        st.success("Background wallpaper updated globally!")
+        st.rerun()
+
+      if store["logo_image"] or store["bg_image"]:
+        if st.button("Reset Branding to Default"):
+          store["logo_image"] = ""
+          store["bg_image"] = ""
+          st.rerun()
+
+# ---------------------------------------------------------
+# HEADER SECTION (LOGO + TITLE)
+# ---------------------------------------------------------
+head_col1, head_col2 = st.columns([1, 5])
+with head_col1:
+  if store["logo_image"]:
+    st.image(store["logo_image"], width=130)
   else:
-    st.title("🏭")
+    st.markdown(
+        "<h1 style='font-size: 70px; margin:0;'>🏭</h1>", unsafe_allow_html=True
+    )
 
-with col_title:
-  st.title(st.session_state.app_title)
-  st.markdown(f"*{st.session_state.app_subtitle}*")
+with head_col2:
+  st.markdown(
+      f"<h1 style='margin-bottom:0; font-weight:800;'>{store['app_title']}</h1>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      "<p style='color: #555; font-size: 16px;"
+      f" margin-top:4px;'><em>{store['app_subtitle']}</em></p>",
+      unsafe_allow_html=True,
+  )
 
 st.markdown("---")
 
-# --- SIDEBAR: LOGIN & CONTROLS ---
-st.sidebar.header("🔐 User Login & Controls")
-
-SHIFT_OPTIONS = ["Shift A (12 Hours)", "Shift B (12 Hours)"]
-
+# Read-only alert banner at top
 if not st.session_state.logged_in:
-  st.sidebar.warning(
-      "🔒 Read-Only Mode. Please log in to enable data updates."
-  )
-
-  input_user = st.sidebar.text_input("Username", key="login_user")
-  input_pass = st.sidebar.text_input(
-      "Password", type="password", key="login_pass"
-  )
-  input_shift = st.sidebar.selectbox(
-      "Select Duty Shift", SHIFT_OPTIONS, key="login_shift"
-  )
-
-  if st.sidebar.button("Login to Dashboard"):
-    if (
-        input_user in st.session_state.user_db
-        and st.session_state.user_db[input_user]["pass"] == input_pass
-    ):
-      st.session_state.logged_in = True
-      st.session_state.user_info = st.session_state.user_db[input_user]
-      st.session_state.user_info["username"] = input_user
-      st.session_state.current_shift = input_shift
-      st.rerun()
-    else:
-      st.sidebar.error("❌ Incorrect Username or Password!")
-
-  with st.sidebar.expander("🔑 Forgot Password?"):
-    st.caption("Enter your registered Username & Email to recover password.")
-    rec_user = st.text_input("Registered Username", key="rec_u")
-    rec_email = st.text_input("Registered Email Address", key="rec_e")
-
-    if st.button("Recover Password"):
-      if (
-          rec_user in st.session_state.user_db
-          and st.session_state.user_db[rec_user]["email"].lower()
-          == rec_email.strip().lower()
-      ):
-        if "smtp" in st.secrets:
-          try:
-            msg = email.mime.text.MIMEText(
-                f"Hello {st.session_state.user_db[rec_user]['name']},\n\nYour"
-                " password for CCR Oxygen Monitoring Dashboard is:"
-                f" {st.session_state.user_db[rec_user]['pass']}\n\nRegards,\nSystem"
-                " Admin"
-            )
-            msg["Subject"] = "Password Recovery - CCR Monitoring System"
-            msg["From"] = st.secrets["smtp"]["email"]
-            msg["To"] = rec_email
-
-            with smtplib.SMTP_SSL(
-                st.secrets["smtp"]["server"], st.secrets["smtp"]["port"]
-            ) as server:
-              server.login(
-                  st.secrets["smtp"]["email"], st.secrets["smtp"]["password"]
-              )
-              server.sendmail(
-                  st.secrets["smtp"]["email"], [rec_email], msg.as_string()
-              )
-            st.success(f"Password reset email sent to {rec_email}!")
-          except Exception as ex:
-            st.error(f"Email Dispatch Error: {ex}")
-        else:
-          st.success(
-              f"🔑 Account Verified! Password for '{rec_user}' is:"
-              f" **{st.session_state.user_db[rec_user]['pass']}**"
-          )
-      else:
-        st.error("Invalid Username or Email address.")
-
-else:
-  u_info = st.session_state.user_info
-  st.sidebar.success(f"👤 **Logged in:** {u_info['name']}")
-  st.sidebar.info(f"⏱️ **Active Shift:** {st.session_state.current_shift}")
-
-  new_shift = st.sidebar.selectbox(
-      "Change Shift",
-      SHIFT_OPTIONS,
-      index=SHIFT_OPTIONS.index(st.session_state.current_shift),
-  )
-  st.session_state.current_shift = new_shift
-
-  if st.sidebar.button("Logout"):
-    st.session_state.logged_in = False
-    st.session_state.user_info = None
-    st.rerun()
-
-# --- STATUS FUNCTION ---
-any_high_alert = False
-
-
-def get_oxygen_status(val, item):
-  global any_high_alert
-  if val < item["min"] or val > item["high"]:
-    any_high_alert = True
-    return (
-        "🔴 CRITICAL ALERT (Red)",
-        "#ff4b4b",
-        "Oxygen level out of safe limits!",
-    )
-  elif item["norm_min"] <= val <= item["norm_max"]:
-    return "🟢 SAFE ZONE (Green)", "#09ab3b", "Normal safe range."
-  elif item["norm_max"] < val <= item["caution_max"]:
-    return "🟠 CAUTION ZONE (Orange)", "#ff8800", "Elevated range, monitor closely."
-  else:
-    any_high_alert = True
-    return (
-        "🔴 CRITICAL ALERT (Red)",
-        "#ff4b4b",
-        "Oxygen level out of safe limits!",
-    )
-
-
-# --- ADMIN & DATA ENTRY CONTROLS ---
-if st.session_state.logged_in:
-  role = st.session_state.user_info["role"]
-  user_display_name = st.session_state.user_info["name"]
-
-  if role == "admin":
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🎨 Admin: Header & Branding")
-
-    with st.sidebar.expander("📝 Edit App Title & Subtitle"):
-      st.session_state.app_title = st.text_input(
-          "Main Title", st.session_state.app_title
-      )
-      st.session_state.app_subtitle = st.text_area(
-          "Subtitle", st.session_state.app_subtitle
-      )
-
-    with st.sidebar.expander("🖼️ Company Logo & Wallpaper"):
-      logo_file = st.file_uploader(
-          "Upload Logo Image", type=["jpg", "png", "jpeg"], key="logo_upload"
-      )
-      if logo_file is not None:
-        bytes_data = logo_file.getvalue()
-        base64_img = base64.b64encode(bytes_data).decode()
-        st.session_state.logo_image = (
-            f"data:{logo_file.type};base64,{base64_img}"
-        )
-
-      bg_file = st.file_uploader(
-          "Upload Background Wallpaper",
-          type=["jpg", "png", "jpeg"],
-          key="bg_upload",
-      )
-      if bg_file is not None:
-        bytes_data = bg_file.getvalue()
-        base64_img = base64.b64encode(bytes_data).decode()
-        st.session_state.bg_image = f"data:{bg_file.type};base64,{base64_img}"
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("👥 Admin: User Management")
-
-    with st.sidebar.expander("➕ Add New User Account"):
-      new_username = st.text_input("New Username", key="add_u_username")
-      new_password = st.text_input(
-          "New Password", type="password", key="add_u_password"
-      )
-      new_name = st.text_input("Display Full Name", key="add_u_name")
-      new_email = st.text_input("User Email", key="add_u_email")
-      new_role = st.selectbox(
-          "User Role", ["operator", "admin"], key="add_u_role"
-      )
-
-      if st.button("Create Account"):
-        if new_username and new_password and new_name:
-          if new_username in st.session_state.user_db:
-            st.error("Username already exists!")
-          else:
-            st.session_state.user_db[new_username] = {
-                "pass": new_password,
-                "name": new_name,
-                "role": new_role,
-                "email": new_email if new_email else "user@pcable.com",
-            }
-            st.success(f"User account '{new_username}' created successfully!")
-            st.rerun()
-        else:
-          st.error("Please fill in Username, Password, and Display Name.")
-
-    with st.sidebar.expander("📋 Existing System Users"):
-      for uname, udata in list(st.session_state.user_db.items()):
-        col_u1, col_u2 = st.columns([4, 1])
-        with col_u1:
-          st.markdown(
-              f"**{uname}** ({udata['name']})  \n*Role:* `{udata['role']}` |"
-              f" *Email:* {udata.get('email', 'N/A')}"
-          )
-        with col_u2:
-          if uname != "admin":
-            if st.button("🗑️", key=f"del_user_{uname}"):
-              del st.session_state.user_db[uname]
-              st.success(f"User '{uname}' deleted.")
-              st.rerun()
-        st.markdown("---")
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("⚙️ Admin: Thresholds & Items")
-
-    new_point = st.sidebar.text_input(
-        "Add New Point Name", key="new_point_input"
-    )
-    if st.sidebar.button("Add Point"):
-      if new_point:
-        st.session_state.monitoring_points.append({
-            "name": new_point,
-            "val": 300.0,
-            "min": 200.0,
-            "norm_min": 200.0,
-            "norm_max": 400.0,
-            "caution_max": 600.0,
-            "high": 600.0,
-        })
-        st.rerun()
-
-  st.sidebar.markdown("---")
-  st.sidebar.subheader("⚡ Quick Data Entry")
-
-  for i, item in enumerate(st.session_state.monitoring_points):
-    with st.sidebar.expander(f"Update: {item['name']}"):
-      item["name"] = st.text_input(
-          "Coil / Item Name", item["name"], key=f"user_name_{i}"
-      )
-      new_val = st.number_input(
-          "Oxygen Value (ppm)", value=float(item["val"]), key=f"user_val_{i}"
-      )
-
-      if role == "admin":
-        item["min"] = st.number_input(
-            "Min Limit (Red)", value=float(item["min"]), key=f"min_{i}"
-        )
-        item["norm_min"] = st.number_input(
-            "Normal Min", value=float(item["norm_min"]), key=f"nmin_{i}"
-        )
-        item["norm_max"] = st.number_input(
-            "Normal Max (Green)",
-            value=float(item["norm_max"]),
-            key=f"nmax_{i}",
-        )
-        item["caution_max"] = st.number_input(
-            "Caution Max (Orange)",
-            value=float(item["caution_max"]),
-            key=f"cmax_{i}",
-        )
-        item["high"] = st.number_input(
-            "High Limit (Red)", value=float(item["high"]), key=f"high_{i}"
-        )
-
-        if st.button(f"Delete {item['name']}", key=f"del_{i}"):
-          st.session_state.monitoring_points.pop(i)
-          st.rerun()
-
-      if new_val != item["val"]:
-        item["val"] = new_val
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        status_text, _, _ = get_oxygen_status(new_val, item)
-
-        log_to_google_sheet(
-            current_time,
-            user_display_name,
-            st.session_state.current_shift,
-            item["name"],
-            new_val,
-            status_text,
-        )
-
-else:
   st.info(
-      "💡 **Note:** Display values are currently in live monitoring mode. Please"
-      " log in via the sidebar to update values."
+      "💡 **Note:** Display values are currently in live monitoring mode."
+      " Please log in via the sidebar to update values."
   )
 
-# --- CARDS DISPLAY ---
+# ---------------------------------------------------------
+# CARDS DISPLAY SECTION & ALARM LOGIC
+# ---------------------------------------------------------
 cols = st.columns(3)
+any_high_alert = False
+alert_details = []
 
-for idx, item in enumerate(st.session_state.monitoring_points):
-  title = item["name"]
-  val = item["val"]
-  status_text, bg_color, message = get_oxygen_status(val, item)
+for idx, pt in enumerate(store["monitoring_points"]):
+  col = cols[idx % 3]
+  val = pt["val"]
 
-  with cols[idx % 3]:
+  if val < pt["norm_min"]:
+    status_label = "CRITICAL ALERT (Red)"
+    val_class = "card-val-red"
+    badge_class = "badge-critical"
+    sub_desc = "Oxygen level critically low!"
+    any_high_alert = True
+    alert_details.append(f"{pt['name']}: Low Level ({val} ppm)")
+  elif val > pt["caution_max"]:
+    status_label = "CRITICAL ALERT (Red)"
+    val_class = "card-val-red"
+    badge_class = "badge-critical"
+    sub_desc = "Oxygen level out of safe limits!"
+    any_high_alert = True
+    alert_details.append(f"{pt['name']}: High Level ({val} ppm)")
+  elif val > pt["norm_max"]:
+    status_label = "CAUTION ZONE (Orange)"
+    val_class = "card-val-orange"
+    badge_class = "badge-caution"
+    sub_desc = "Elevated range, monitor closely."
+  else:
+    status_label = "SAFE ZONE (Green)"
+    val_class = "card-val-green"
+    badge_class = "badge-safe"
+    sub_desc = "Normal safe range."
+
+  with col:
     st.markdown(
         f"""
-        <div style="padding: 22px; border-radius: 12px; background-color: rgba(30, 30, 30, 0.92); border: 3px solid {bg_color}; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin-bottom: 20px;">
-            <h3 style="color: #ffffff; margin-bottom: 5px; font-size: 18px;">{title}</h3>
-            <h1 style="color: {bg_color}; font-size: 42px; margin: 10px 0;">{val} <span style="font-size: 20px;">ppm</span></h1>
-            <p style="color: {bg_color}; font-weight: bold; font-size: 15px; margin-bottom: 5px;">{status_text}</p>
-            <p style="color: #b0b0b0; font-size: 12px;">{message}</p>
+        <div class="main-card">
+            <div class="card-title">{pt['name']}</div>
+            <div class="{val_class}">{val:.1f} <span style="font-size:20px;">ppm</span></div>
+            <div style="text-align: center; margin-top: 10px;">
+                <span class="{badge_class}">● {status_label}</span>
+                <div style="color: #aaa; font-size: 12px; margin-top: 6px;">{sub_desc}</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-# --- ALARM SOUND & CRITICAL ALERT (ONLY ACTIVE WHEN LOGGED IN) ---
+# ---------------------------------------------------------
+# CRITICAL ALARM BANNER (ONLY SHOW WHEN LOGGED IN & ALERT ACTIVE)
+# ---------------------------------------------------------
 if st.session_state.logged_in and any_high_alert:
-  st.toast(
-      "🚨 CRITICAL ALERT: Oxygen level is out of safe limits!", icon="⚠️"
-  )
-
-  alert_html = """
-    <div style="background-color: #8b0000; color: white; padding: 20px; border-radius: 10px; text-align: center; margin-top: 10px; margin-bottom: 20px; border: 3px solid #ff4b4b;">
-        <h2 style="margin:0 0 8px 0; color: #ffffff; font-size: 26px;">🚨 CRITICAL HIGH ALERT!</h2>
-        <p style="font-size: 16px; margin:0 0 14px 0;">Oxygen level has exceeded safe operating limits!</p>
-        <button id="start-alarm-btn" onclick="playContinuousAlarm()" style="background-color: #ff4b4b; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.4);">
+  alert_msg = " | ".join(alert_details)
+  alarm_html = f"""
+    <div style="font-family: sans-serif; background-color: #8b0000; color: white; padding: 18px; border-radius: 12px; text-align: center; border: 3px solid #ff4b4b; box-shadow: 0 6px 16px rgba(0,0,0,0.4); margin-top: 10px; margin-bottom: 20px;">
+        <h2 style="margin: 0 0 8px 0; color: #ffffff; font-size: 24px;">🚨 CRITICAL HIGH ALERT!</h2>
+        <p style="font-size: 15px; margin: 0 0 14px 0; color: #ffcccc;">{alert_msg}</p>
+        <button id="alarmBtn" onclick="toggleSiren()" style="background-color: #ff4b4b; color: white; border: 2px solid #ffffff; padding: 12px 26px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
             🔔 CLICK HERE TO START ALARM SOUND 🔊
         </button>
     </div>
 
     <script>
-    var alarmInterval = null;
-    function playContinuousAlarm() {
-        var AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        var audioCtx = new AudioContext();
+    var audioCtx = null;
+    var sirenInterval = null;
+    var isPlaying = false;
 
-        function triggerBeep() {
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            var osc = audioCtx.createOscillator();
-            var gain = audioCtx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 880Hz Siren Tone
-            gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.4);
-        }
-
-        triggerBeep();
-        if (!alarmInterval) {
-            alarmInterval = setInterval(triggerBeep, 700);
-        }
-
-        var btn = document.getElementById("start-alarm-btn");
-        if (btn) {
-            btn.innerText = "🚨 ALARM SOUND ACTIVE (1 MINUTE)...";
-            btn.style.backgroundColor = "#cc0000";
-        }
-
-        setTimeout(function() {
-            if (alarmInterval) {
-                clearInterval(alarmInterval);
-                alarmInterval = null;
-            }
-            if (btn) {
-                btn.innerText = "🔔 CLICK HERE TO RESTART ALARM SOUND 🔊";
+    function toggleSiren() {{
+        var btn = document.getElementById("alarmBtn");
+        
+        if (isPlaying) {{
+            if (sirenInterval) clearInterval(sirenInterval);
+            sirenInterval = null;
+            isPlaying = false;
+            if (btn) {{
+                btn.innerText = "🔔 CLICK HERE TO START ALARM SOUND 🔊";
                 btn.style.backgroundColor = "#ff4b4b";
-            }
-        }, 60000);
-    }
+            }}
+            return;
+        }}
+        
+        try {{
+            var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+            if (!audioCtx) {{
+                audioCtx = new AudioCtxClass();
+            }}
+            if (audioCtx.state === 'suspended') {{
+                audioCtx.resume();
+            }}
+            
+            isPlaying = true;
+            if (btn) {{
+                btn.innerText = "🚨 ALARM RINGING (CLICK TO MUTE) 🔊";
+                btn.style.backgroundColor = "#cc0000";
+            }}
+
+            var flip = false;
+            function playSirenTone() {{
+                if (!isPlaying) return;
+                try {{
+                    var osc = audioCtx.createOscillator();
+                    var gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    
+                    var freq = flip ? 980 : 620;
+                    flip = !flip;
+                    
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.05, audioCtx.currentTime + 0.45);
+                    
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.45);
+                }} catch(e) {{
+                    console.error("Audio error:", e);
+                }}
+            }}
+
+            playSirenTone();
+            sirenInterval = setInterval(playSirenTone, 500);
+
+        }} catch(err) {{
+            alert("Audio playback error: " + err.message);
+        }}
+    }}
     </script>
     """
-  st.markdown(alert_html, unsafe_allow_html=True)
+  components.html(alarm_html, height=190)
+
+# ---------------------------------------------------------
+# DATA UPDATE & MANAGEMENT SECTION (LOGGED IN USERS ONLY)
+# ---------------------------------------------------------
+if st.session_state.logged_in:
+  st.markdown("### 📝 Live Data Entry & Operations Panel")
+
+  tabs = st.tabs([
+      "⚡ Update Values",
+      "➕ Manage Monitoring Points",
+      "👥 User Management (Admin)",
+      "📊 Google Sheets Log History",
+  ])
+
+  # TAB 1: UPDATE VALUES
+  with tabs[0]:
+    st.subheader("Update Live Sensor Readings")
+    up_col1, up_col2 = st.columns(2)
+    with up_col1:
+      selected_point_name = st.selectbox(
+          "Select Item to Update",
+          [p["name"] for p in store["monitoring_points"]],
+      )
+      selected_point = next(
+          p
+          for p in store["monitoring_points"]
+          if p["name"] == selected_point_name
+      )
+      new_val = st.number_input(
+          "New Oxygen Level (ppm)",
+          value=float(selected_point["val"]),
+          step=1.0,
+          format="%.2f",
+      )
+
+    with up_col2:
+      st.info(
+          f"**Item Limits:** Normal: {selected_point['norm_min']} -"
+          f" {selected_point['norm_max']} ppm | Caution Max:"
+          f" {selected_point['caution_max']} ppm"
+      )
+      if st.button("Submit & Save Reading", type="primary"):
+        selected_point["val"] = new_val
+
+        # Determine status
+        if new_val < selected_point["norm_min"]:
+          st_str = "CRITICAL LOW ALERT"
+        elif new_val > selected_point["caution_max"]:
+          st_str = "CRITICAL HIGH ALERT"
+        elif new_val > selected_point["norm_max"]:
+          st_str = "CAUTION ZONE"
+        else:
+          st_str = "SAFE ZONE"
+
+        # Add to log history
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        store["log_history"].append({
+            "Timestamp": now_str,
+            "Duty Shift": st.session_state.duty_shift,
+            "Item": selected_point_name,
+            "Oxygen Level (ppm)": new_val,
+            "Status": st_str,
+            "Updated By": st.session_state.username,
+        })
+        st.success(
+            f"Successfully updated {selected_point_name} to {new_val} ppm!"
+        )
+        st.rerun()
+
+  # TAB 2: MANAGE POINTS (ADMIN / OPERATOR)
+  with tabs[1]:
+    st.subheader("Add or Remove Monitoring Points")
+    if st.session_state.user_role == "admin":
+      st.markdown("#### ➕ Add New Point")
+      with st.form("add_point_form"):
+        p_name = st.text_input("Point Name (e.g. CR-3000 Top End)")
+        p_val = st.number_input("Initial Value (ppm)", value=250.0)
+        p_min = st.number_input("Minimum Safe (ppm)", value=150.0)
+        p_norm_max = st.number_input("Normal Max (ppm)", value=400.0)
+        p_caut_max = st.number_input("Caution Max (ppm)", value=600.0)
+        if st.form_submit_button("Add Monitoring Point"):
+          if p_name:
+            store["monitoring_points"].append({
+                "name": p_name,
+                "val": p_val,
+                "min": p_min,
+                "norm_min": p_min,
+                "norm_max": p_norm_max,
+                "caution_max": p_caut_max,
+                "high": p_caut_max,
+            })
+            st.success(f"Added {p_name} successfully!")
+            st.rerun()
+          else:
+            st.error("Please provide a valid point name.")
+
+      st.markdown("---")
+      st.markdown("#### 🗑️ Remove Point")
+      del_point = st.selectbox(
+          "Select Point to Delete",
+          [p["name"] for p in store["monitoring_points"]],
+          key="del_sel",
+      )
+      if st.button("Delete Selected Point", type="secondary"):
+        store["monitoring_points"] = [
+            p for p in store["monitoring_points"] if p["name"] != del_point
+        ]
+        st.success(f"Deleted {del_point} successfully!")
+        st.rerun()
+    else:
+      st.warning("Only Admin users can add or remove monitoring points.")
+
+  # TAB 3: USER MANAGEMENT (ADMIN ONLY)
+  with tabs[2]:
+    if st.session_state.user_role == "admin":
+      st.subheader("👥 System User Accounts")
+      users_df = pd.DataFrame([
+          {
+              "Username": u,
+              "Name": store["user_db"][u]["name"],
+              "Role": store["user_db"][u]["role"],
+              "Email": store["user_db"][u]["email"],
+          }
+          for u in store["user_db"]
+      ])
+      st.dataframe(users_df, use_container_width=True)
+
+      st.markdown("#### Create New User Account")
+      with st.form("new_user_form"):
+        nu_user = st.text_input("New Username")
+        nu_pass = st.text_input("New Password", type="password")
+        nu_name = st.text_input("Full Name")
+        nu_email = st.text_input("Email")
+        nu_role = st.selectbox("Role", ["operator", "admin"])
+        if st.form_submit_button("Create Account"):
+          if nu_user and nu_pass:
+            store["user_db"][nu_user] = {
+                "pass": nu_pass,
+                "name": nu_name,
+                "role": nu_role,
+                "email": nu_email,
+            }
+            st.success(f"User {nu_user} created successfully!")
+            st.rerun()
+          else:
+            st.error("Username and Password are required.")
+    else:
+      st.warning("Access Restricted: Admin privileges required.")
+
+  # TAB 4: LOG HISTORY
+  with tabs[3]:
+    st.subheader("📊 24/7 Google Sheets Logged History")
+    df_logs = pd.DataFrame(store["log_history"])
+    st.dataframe(df_logs, use_container_width=True)
+    csv_data = df_logs.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "📥 Download Log History (CSV)",
+        data=csv_data,
+        file_name="pcl_oxygen_log.csv",
+        mime="text/csv",
+    )
