@@ -13,13 +13,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-
 # ---------------------------------------------------------
-# GLOBAL SHARED STORE (PERMANENT PERSISTENCE ACROSS SESSIONS & LOGOUTS)
+# INITIALIZE SESSION STATE STORE (PERMANENT PERSISTENCE)
 # ---------------------------------------------------------
-@st.cache_resource
-def get_global_store():
-  return {
+if "store" not in st.session_state:
+  st.session_state.store = {
       "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
       "app_subtitle": (
           "Real-time oxygen tracking system with individual item thresholds"
@@ -122,10 +120,9 @@ def get_global_store():
       ],
   }
 
+store = st.session_state.store
 
-store = get_global_store()
-
-# Initialize session state for user authentication only
+# Initialize session state for user authentication
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
 if "username" not in st.session_state:
@@ -136,7 +133,7 @@ if "duty_shift" not in st.session_state:
   st.session_state.duty_shift = "Shift A (12 Hours)"
 
 # ---------------------------------------------------------
-# FIXED BACKGROUND & CUSTOM STYLING
+# CUSTOM STYLING & BACKGROUND INJECTION
 # ---------------------------------------------------------
 bg_css = ""
 if store["bg_image"]:
@@ -280,7 +277,7 @@ else:
 
   st.sidebar.markdown("---")
 
-  # ADMIN ONLY SETTINGS PANEL IN SIDEBAR (LOGO & WALLPAPER ONLY AFTER ADMIN LOGIN)
+  # ADMIN ONLY SETTINGS PANEL IN SIDEBAR
   if st.session_state.user_role == "admin":
     with st.sidebar.expander("⚙️ Admin Settings & Branding"):
       st.markdown("#### App Title Settings")
@@ -295,7 +292,7 @@ else:
       st.markdown("---")
       st.markdown("#### 🖼️ Company Logo & Wallpaper")
       uploaded_logo = st.file_uploader(
-          "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"]
+          "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
       )
       if uploaded_logo:
         encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
@@ -304,7 +301,7 @@ else:
         st.rerun()
 
       uploaded_bg = st.file_uploader(
-          "Upload Background Wallpaper", type=["png", "jpg", "jpeg"]
+          "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
       )
       if uploaded_bg:
         encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
@@ -488,7 +485,10 @@ if st.session_state.logged_in and any_high_alert:
 # DATA UPDATE & MANAGEMENT SECTION (LOGGED IN USERS ONLY)
 # ---------------------------------------------------------
 if st.session_state.logged_in:
-  st.markdown("<h3 style='color: white;'>📝 Live Data Entry & Operations Panel</h3>", unsafe_allow_html=True)
+  st.markdown(
+      "<h3 style='color: white;'>📝 Live Data Entry & Operations Panel</h3>",
+      unsafe_allow_html=True,
+  )
 
   tabs = st.tabs([
       "⚡ Update Values",
@@ -505,6 +505,7 @@ if st.session_state.logged_in:
       selected_point_name = st.selectbox(
           "Select Item to Update",
           [p["name"] for p in store["monitoring_points"]],
+          key="update_sel_item",
       )
       selected_point = next(
           p
@@ -516,6 +517,7 @@ if st.session_state.logged_in:
           value=float(selected_point["val"]),
           step=1.0,
           format="%.2f",
+          key="update_new_val",
       )
 
     with up_col2:
@@ -556,7 +558,7 @@ if st.session_state.logged_in:
   with tabs[1]:
     st.subheader("Add, Edit or Remove Monitoring Points")
 
-    st.markdown("#### ✏️ Edit Existing Point / CR Name")
+    st.markdown("#### ✏️ Edit Existing Point / CR Name & Limits")
     edit_pt_name = st.selectbox(
         "Select Point/CR to Edit",
         [p["name"] for p in store["monitoring_points"]],
@@ -566,53 +568,69 @@ if st.session_state.logged_in:
         p for p in store["monitoring_points"] if p["name"] == edit_pt_name
     )
 
-    with st.form("edit_point_form"):
-      new_edit_name = st.text_input("Edit Point / CR Name", value=edit_pt["name"])
-      new_edit_min = st.number_input(
-          "Minimum Safe (ppm)", value=float(edit_pt["norm_min"])
-      )
-      new_edit_norm_max = st.number_input(
-          "Normal Max (ppm)", value=float(edit_pt["norm_max"])
-      )
-      new_edit_caut_max = st.number_input(
-          "Caution Max (ppm)", value=float(edit_pt["caution_max"])
-      )
+    # Use regular inputs instead of st.form to fix saving issues instantly
+    new_edit_name = st.text_input(
+        "Edit Point / CR Name", value=edit_pt["name"], key="edit_name_input"
+    )
+    new_edit_min = st.number_input(
+        "Minimum Safe (ppm)",
+        value=float(edit_pt["norm_min"]),
+        key="edit_min_input",
+    )
+    new_edit_norm_max = st.number_input(
+        "Normal Max (ppm)",
+        value=float(edit_pt["norm_max"]),
+        key="edit_norm_max_input",
+    )
+    new_edit_caut_max = st.number_input(
+        "Caution Max (ppm)",
+        value=float(edit_pt["caution_max"]),
+        key="edit_caut_max_input",
+    )
 
-      if st.form_submit_button("Update Point Settings"):
-        edit_pt["name"] = new_edit_name
-        edit_pt["norm_min"] = new_edit_min
-        edit_pt["min"] = new_edit_min
-        edit_pt["norm_max"] = new_edit_norm_max
-        edit_pt["caution_max"] = new_edit_caut_max
-        edit_pt["high"] = new_edit_caut_max
-        st.success(f"Successfully updated {new_edit_name}!")
-        st.rerun()
+    if st.button("Update Point Settings", type="primary"):
+      edit_pt["name"] = new_edit_name
+      edit_pt["norm_min"] = new_edit_min
+      edit_pt["min"] = new_edit_min
+      edit_pt["norm_max"] = new_edit_norm_max
+      edit_pt["caution_max"] = new_edit_caut_max
+      edit_pt["high"] = new_edit_caut_max
+      st.success(f"Successfully updated {new_edit_name}!")
+      st.rerun()
 
     st.markdown("---")
 
     if st.session_state.user_role == "admin":
       st.markdown("#### ➕ Add New Point")
-      with st.form("add_point_form"):
-        p_name = st.text_input("Point Name (e.g. CR-3000 Top End)")
-        p_val = st.number_input("Initial Value (ppm)", value=250.0)
-        p_min = st.number_input("Minimum Safe (ppm)", value=150.0)
-        p_norm_max = st.number_input("Normal Max (ppm)", value=400.0)
-        p_caut_max = st.number_input("Caution Max (ppm)", value=600.0)
-        if st.form_submit_button("Add Monitoring Point"):
-          if p_name:
-            store["monitoring_points"].append({
-                "name": p_name,
-                "val": p_val,
-                "min": p_min,
-                "norm_min": p_min,
-                "norm_max": p_norm_max,
-                "caution_max": p_caut_max,
-                "high": p_caut_max,
-            })
-            st.success(f"Added {p_name} successfully!")
-            st.rerun()
-          else:
-            st.error("Please provide a valid point name.")
+      p_name = st.text_input(
+          "Point Name (e.g. CR-3000 Top End)", key="add_p_name"
+      )
+      p_val = st.number_input("Initial Value (ppm)", value=250.0, key="add_p_val")
+      p_min = st.number_input(
+          "Minimum Safe (ppm)", value=150.0, key="add_p_min"
+      )
+      p_norm_max = st.number_input(
+          "Normal Max (ppm)", value=400.0, key="add_p_norm_max"
+      )
+      p_caut_max = st.number_input(
+          "Caution Max (ppm)", value=600.0, key="add_p_caut_max"
+      )
+
+      if st.button("Add Monitoring Point"):
+        if p_name:
+          store["monitoring_points"].append({
+              "name": p_name,
+              "val": p_val,
+              "min": p_min,
+              "norm_min": p_min,
+              "norm_max": p_norm_max,
+              "caution_max": p_caut_max,
+              "high": p_caut_max,
+          })
+          st.success(f"Added {p_name} successfully!")
+          st.rerun()
+        else:
+          st.error("Please provide a valid point name.")
 
       st.markdown("---")
       st.markdown("#### 🗑️ Remove Point")
@@ -649,24 +667,26 @@ if st.session_state.logged_in:
       st.dataframe(users_df, use_container_width=True)
 
       st.markdown("#### Create New User Account")
-      with st.form("new_user_form"):
-        nu_user = st.text_input("New Username")
-        nu_pass = st.text_input("New Password", type="password")
-        nu_name = st.text_input("Full Name")
-        nu_email = st.text_input("Email")
-        nu_role = st.selectbox("Role", ["operator", "admin"])
-        if st.form_submit_button("Create Account"):
-          if nu_user and nu_pass:
-            store["user_db"][nu_user] = {
-                "pass": nu_pass,
-                "name": nu_name,
-                "role": nu_role,
-                "email": nu_email,
-            }
-            st.success(f"User {nu_user} created successfully!")
-            st.rerun()
-          else:
-            st.error("Username and Password are required.")
+      nu_user = st.text_input("New Username", key="nu_user_input")
+      nu_pass = st.text_input(
+          "New Password", type="password", key="nu_pass_input"
+      )
+      nu_name = st.text_input("Full Name", key="nu_name_input")
+      nu_email = st.text_input("Email", key="nu_email_input")
+      nu_role = st.selectbox("Role", ["operator", "admin"], key="nu_role_input")
+
+      if st.button("Create Account"):
+        if nu_user and nu_pass:
+          store["user_db"][nu_user] = {
+              "pass": nu_pass,
+              "name": nu_name,
+              "role": nu_role,
+              "email": nu_email,
+          }
+          st.success(f"User {nu_user} created successfully!")
+          st.rerun()
+        else:
+          st.error("Username and Password are required.")
     else:
       st.warning("Access Restricted: Admin privileges required.")
 
