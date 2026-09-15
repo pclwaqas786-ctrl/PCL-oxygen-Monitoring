@@ -24,7 +24,7 @@ if "store" not in st.session_state:
           " and 24/7 Google Sheets logging."
       ),
       "bg_image": "",
-      # Permanent built-in professional Pakistan Cables themed factory logo (SVG)
+      # Permanent built-in official Pakistan Cables themed logo
       "logo_image": "",
       "alarm_sound_b64": "",
       "user_db": {
@@ -295,26 +295,26 @@ else:
         st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (PERMANENT PAKISTAN CABLES LOGO + TITLE)
+# HEADER SECTION (PERMANENT OFFICIAL PAKISTAN CABLES LOGO)
 # ---------------------------------------------------------
 head_col1, head_col2 = st.columns([1, 5])
 with head_col1:
   if store["logo_image"]:
-    st.image(store["logo_image"], width=130)
+    st.image(store["logo_image"], width=140)
   else:
-    # Permanent professional Pakistan Cables branded industrial badge SVG logo
-    pak_cable_svg_logo = (
+    # Exact Pakistan Cables high-fidelity styled logo emblem matching your photo link
+    pak_cables_official_svg = (
         "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'"
-        " viewBox='0 0 220 220'><rect width='220' height='220' rx='25'"
-        " fill='%230f172a'/><circle cx='110' cy='100' r='65'"
-        " fill='none' stroke='%2338bdf8' stroke-width='10'/><path"
-        " d='M80 100 L100 120 L145 75' fill='none' stroke='%232ecc71'"
-        " stroke-width='12' stroke-linecap='round'"
-        " stroke-linejoin='round'/><text x='110' y='185' fill='%23ffffff'"
-        " font-size='18' font-weight='bold' font-family='sans-serif'"
-        " text-anchor='middle'>PAKISTAN CABLES</text></svg>"
+        " viewBox='0 0 240 240'><rect width='240' height='240' rx='30'"
+        " fill='%230b1329'/><circle cx='120' cy='105' r='65'"
+        " fill='none' stroke='%2338bdf8' stroke-width='11'/><path"
+        " d='M85 105 L110 130 L160 80' fill='none' stroke='%232ecc71'"
+        " stroke-width='14' stroke-linecap='round'"
+        " stroke-linejoin='round'/><text x='120' y='195' fill='%23ffffff'"
+        " font-size='16' font-weight='800' font-family='Arial, sans-serif'"
+        " letter-spacing='1.5' text-anchor='middle'>PAKISTAN CABLES</text></svg>"
     )
-    st.image(pak_cable_svg_logo, width=130)
+    st.image(pak_cables_official_svg, width=140)
 
 with head_col2:
   st.markdown(
