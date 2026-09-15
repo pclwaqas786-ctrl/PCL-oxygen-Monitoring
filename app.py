@@ -43,23 +43,45 @@ if "store" not in st.session_state:
       "monitoring_points": [
           {
               "name": "Coil",
-              "coil_prefix": "",
-              "coil_num": "",
-              "val": 249.01,
-              "min": 200.0,
-              "norm_min": 200.0,
+              "coil_prefix": "CR",
+              "coil_num": "2003",
+              "val": 249.0,
+              "min": 150.0,
+              "norm_min": 150.0,
               "norm_max": 400.0,
               "caution_max": 600.0,
               "high": 600.0,
-          }
+          },
+          {
+              "name": "Tundish",
+              "coil_prefix": "",
+              "coil_num": "",
+              "val": 250.0,
+              "min": 150.0,
+              "norm_min": 150.0,
+              "norm_max": 400.0,
+              "caution_max": 600.0,
+              "high": 600.0,
+          },
+          {
+              "name": "Shaft Furnace",
+              "coil_prefix": "",
+              "coil_num": "",
+              "val": 250.0,
+              "min": 150.0,
+              "norm_min": 150.0,
+              "norm_max": 400.0,
+              "caution_max": 600.0,
+              "high": 600.0,
+          },
       ],
       "log_history": [
           {
               "Timestamp": "2026-09-14 10:00:00",
               "Duty Shift": "Shift A (12 Hours)",
               "Item": "Coil",
-              "Coil No": "",
-              "Oxygen Level (ppm)": 249.01,
+              "Coil No": "CR2003",
+              "Oxygen Level (ppm)": 249.0,
               "Status": "SAFE ZONE",
               "Updated By": "System",
           }
@@ -224,9 +246,11 @@ else:
 
   st.sidebar.markdown("---")
 
-  # ADMIN ONLY SETTINGS PANEL IN SIDEBAR
+  # ADMIN ONLY SETTINGS PANEL IN SIDEBAR (Expanded by default for convenience)
   if st.session_state.user_role == "admin":
-    with st.sidebar.expander("⚙️ Admin Settings & Branding"):
+    with st.sidebar.expander(
+        "⚙️ Admin Settings & Branding", expanded=True
+    ):
       st.markdown("#### App Title Settings")
       new_title = st.text_input("Main Title", value=store["app_title"])
       new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
@@ -245,6 +269,7 @@ else:
         b64_audio = base64.b64encode(uploaded_audio.read()).decode()
         store["alarm_sound_b64"] = f"data:audio/mp3;base64,{b64_audio}"
         st.success("Custom alarm sound uploaded successfully!")
+        st.rerun()
 
       if store["alarm_sound_b64"]:
         if st.button("Reset to Default Siren"):
@@ -261,6 +286,7 @@ else:
         encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
         store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
         st.success("Logo uploaded successfully!")
+        st.rerun()
 
       uploaded_bg = st.file_uploader(
           "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
@@ -269,6 +295,7 @@ else:
         encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
         store["bg_image"] = f"data:image/jpeg;base64,{encoded_bg}"
         st.success("Background wallpaper updated successfully!")
+        st.rerun()
 
 # ---------------------------------------------------------
 # HEADER SECTION (LOGO + TITLE)
@@ -311,8 +338,10 @@ for idx, pt in enumerate(store["monitoring_points"]):
   val = pt["val"]
   prefix = pt.get("coil_prefix", "")
   c_num = pt.get("coil_num", "")
-  full_coil_display = f"{prefix}{c_num}".strip()
-  if not full_coil_display:
+  
+  if prefix or c_num:
+    full_coil_display = f"{prefix}{c_num}".strip()
+  else:
     full_coil_display = "N/A"
 
   if val < pt["norm_min"]:
@@ -365,7 +394,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
 # ---------------------------------------------------------
 custom_sound_b64 = store.get("alarm_sound_b64", "")
 
-if st.session_state.logged_in and any_high_alert:
+if any_high_alert:
   alert_msg = " | ".join(alert_details)
   alarm_html = f"""
     <div style="font-family: sans-serif; background-color: #8b0000; color: white; padding: 18px; border-radius: 12px; text-align: center; border: 3px solid #ff4b4b; box-shadow: 0 6px 16px rgba(0,0,0,0.4); margin-top: 10px; margin-bottom: 20px;">
@@ -475,7 +504,7 @@ if st.session_state.logged_in:
 
       with up_col1:
         selected_edit_idx = st.selectbox(
-            "1. Select Coil",
+            "1. Select Coil / Point",
             options=range(len(pt_names)),
             format_func=lambda x: pt_names[x],
             key="update_item_idx",
@@ -485,7 +514,7 @@ if st.session_state.logged_in:
       with up_col2:
         st.markdown(
             "<label style='font-size:14px; font-weight:600; color:#ffffff;'>2."
-            " Enter Coil Number / Code</label>",
+            " Enter Prefix & Number</label>",
             unsafe_allow_html=True,
         )
         col_p1, col_p2 = st.columns([1, 2])
@@ -517,9 +546,12 @@ if st.session_state.logged_in:
       if st.button("Submit & Save Reading", type="primary"):
         current_pt["coil_prefix"] = new_coil_prefix
         current_pt["coil_num"] = new_coil_num
-        full_coil_str = f"{new_coil_prefix}{new_coil_num}".strip()
-        if not full_coil_str:
+        
+        if new_coil_prefix or new_coil_num:
+          full_coil_str = f"{new_coil_prefix}{new_coil_num}".strip()
+        else:
           full_coil_str = "N/A"
+          
         current_pt["val"] = new_val
 
         if new_val < current_pt["norm_min"]:
@@ -554,7 +586,7 @@ if st.session_state.logged_in:
   # TAB 2 (ADMIN ONLY): MANAGE LIMITS & DELETE COILS
   if st.session_state.user_role == "admin":
     with tabs[1]:
-      st.subheader("⚙️ Admin Panel: Edit Limits & Delete Coils")
+      st.subheader("⚙️ Admin Panel: Edit Limits & Delete Points")
 
       if len(store["monitoring_points"]) > 0:
         pt_names_adm = [p["name"] for p in store["monitoring_points"]]
@@ -572,7 +604,7 @@ if st.session_state.logged_in:
             key=f"adm_name_{adm_edit_idx}",
         )
         adm_new_prefix = st.text_input(
-            "Prefix (Leave empty if no CR required)",
+            "Prefix (e.g. CR, leave empty if not required)",
             value=adm_pt.get("coil_prefix", ""),
             key=f"adm_pref_{adm_edit_idx}",
         )
@@ -612,30 +644,30 @@ if st.session_state.logged_in:
             st.rerun()
 
         with col_btn2:
-          if st.button("🗑️ Delete Selected Coil", type="secondary"):
+          if st.button("🗑️ Delete Selected Point", type="secondary"):
             del_name = store["monitoring_points"][adm_edit_idx]["name"]
             store["monitoring_points"].pop(adm_edit_idx)
             st.success(f"Deleted {del_name} successfully!")
             st.rerun()
 
       st.markdown("---")
-      st.markdown("#### ➕ Add New Monitoring Point / Coil")
+      st.markdown("#### ➕ Add New Monitoring Point")
       add_p_name = st.text_input(
-          "Point Name (e.g. Coil Station)",
-          value="Coil Station",
+          "Point Name (e.g. Furnace Station)",
+          value="Furnace",
           key="new_p",
       )
       add_p_pref = st.text_input(
-          "Prefix (Leave empty if no CR)", value="", key="new_pr"
+          "Prefix (Leave empty if no prefix needed)", value="", key="new_pr"
       )
       add_p_coil = st.text_input(
-          "Default Coil Number", value="2003", key="new_p_c"
+          "Default Number/Code", value="101", key="new_p_c"
       )
       add_p_val = st.number_input(
           "Initial Oxygen Value", value=250.0, key="new_p_v"
       )
 
-      if st.button("Add New Coil Point"):
+      if st.button("Add New Monitoring Point"):
         if add_p_name:
           store["monitoring_points"].append({
               "name": add_p_name,
