@@ -491,52 +491,40 @@ if st.session_state.logged_in:
         ["⚡ Update Readings & Coil No", "📊 Log History (Read Only)"]
     )
 
-  # TAB 1: UPDATE VALUES & COIL NUMBER
+  # TAB 1: UPDATE VALUES & COIL NUMBER (FIXED)
   with tabs[0]:
     st.subheader("Update Live Sensor Reading & Coil Number")
     if len(store["monitoring_points"]) > 0:
-      up_col1, up_col2, up_col3 = st.columns(3)
       pt_names = [p["name"] for p in store["monitoring_points"]]
+      
+      selected_edit_idx = st.selectbox(
+          "1. Select Coil / Point",
+          options=range(len(pt_names)),
+          format_func=lambda x: pt_names[x],
+          key="update_item_idx",
+      )
+      current_pt = store["monitoring_points"][selected_edit_idx]
 
+      up_col1, up_col2 = st.columns(2)
       with up_col1:
-        selected_edit_idx = st.selectbox(
-            "1. Select Coil / Point",
-            options=range(len(pt_names)),
-            format_func=lambda x: pt_names[x],
-            key="update_item_idx",
+        new_coil_prefix = st.text_input(
+            "Prefix (e.g., CR)",
+            value=current_pt.get("coil_prefix", ""),
+            key="up_prefix",
         )
-        current_pt = store["monitoring_points"][selected_edit_idx]
+        new_coil_num = st.text_input(
+            "Coil / Station Number (e.g., 2003 or 554)",
+            value=current_pt.get("coil_num", ""),
+            key="up_num",
+        )
 
       with up_col2:
-        st.markdown(
-            "<label style='font-size:14px; font-weight:600; color:#ffffff;'>2."
-            " Enter Prefix & Number</label>",
-            unsafe_allow_html=True,
-        )
-        col_p1, col_p2 = st.columns([1, 2])
-        curr_prefix = current_pt.get("coil_prefix", "")
-        with col_p1:
-          new_coil_prefix = st.text_input(
-              "Prefix",
-              value=curr_prefix,
-              label_visibility="collapsed",
-              key="update_coil_prefix_input",
-          )
-        with col_p2:
-          new_coil_num = st.text_input(
-              "Number",
-              value=current_pt.get("coil_num", ""),
-              label_visibility="collapsed",
-              key="update_coil_num_input",
-          )
-
-      with up_col3:
         new_val = st.number_input(
-            "3. Enter PPM",
+            "Oxygen Level (PPM)",
             value=float(current_pt["val"]),
             step=1.0,
             format="%.2f",
-            key="update_oxygen_val",
+            key="up_ppm",
         )
 
       if st.button("Submit & Save Reading", type="primary"):
@@ -560,7 +548,7 @@ if st.session_state.logged_in:
           st_str = "SAFE ZONE"
 
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        store["log_history"].append({
+        log_entry = {
             "Timestamp": now_str,
             "Duty Shift": st.session_state.duty_shift,
             "Item": current_pt["name"],
@@ -568,7 +556,20 @@ if st.session_state.logged_in:
             "Oxygen Level (ppm)": new_val,
             "Status": st_str,
             "Updated By": st.session_state.username,
-        })
+        }
+        store["log_history"].append(log_entry)
+
+        # GOOGLE SHEETS AUTO-SYNC LOGIC (Optional if credentials configured)
+        try:
+          import gspread
+          if "gcp_service_account" in st.secrets:
+            gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+            sh = gc.open("Pakistan_Cable_Oxygen_Logs")
+            worksheet = sh.get_worksheet(0)
+            worksheet.append_row(list(log_entry.values()))
+        except Exception as e:
+          pass  # Local fallback active if Google Sheets not configured
+
         st.success(
             f"Successfully updated {current_pt['name']} (Coil No:"
             f" {full_coil_str}) to {new_val} ppm!"
