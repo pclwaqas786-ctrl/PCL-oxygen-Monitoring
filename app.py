@@ -81,7 +81,7 @@ default_store = {
         {
             "Timestamp": "2026-09-14 17:50:49",
             "User": "Admin Manager",
-            "Shift": "Shift A (12 Hours)",
+            "Shift": "Shift A",
             "Item Name": "CR-2002",
             "Coil Oxygen Value (ppm)": 449.01,
             "Tundish Oxygen Value (ppm)": "",
@@ -119,13 +119,13 @@ if "store" not in st.session_state:
 
 store = st.session_state.store
 
-# Sahi Session States for Login / Logout Management
+# Session State Initialization for Login/Logout
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
 if "username" not in st.session_state:
   st.session_state.username = ""
 if "duty_shift" not in st.session_state:
-  st.session_state.duty_shift = "Shift A (12 Hours)"
+  st.session_state.duty_shift = "Shift A"
 
 # ---------------------------------------------------------
 # CUSTOM STYLING & BACKGROUND INJECTION
@@ -251,7 +251,7 @@ if not st.session_state.logged_in:
       st.sidebar.error("Invalid Username or Password")
   st.stop()
 
-# Agar logged in hai toh info show karo aur logout button do
+# Logged in user info & Logout Button
 user_info = store["user_db"].get(
     st.session_state.username, {"name": "Admin Manager", "role": "admin"}
 )
@@ -264,9 +264,9 @@ if st.sidebar.button("🚪 Logout", type="secondary"):
   st.session_state.username = ""
   st.rerun()
 
-# Sirf 2 shifts (Shift A aur Shift B)
+# Sirf 2 shifts: Shift A aur Shift B
 st.session_state.duty_shift = st.sidebar.selectbox(
-    "Select Duty Shift", ["Shift A (12 Hours)", "Shift B (12 Hours)"], index=0
+    "Select Duty Shift", ["Shift A", "Shift B"], index=0
 )
 
 st.sidebar.markdown("---")
@@ -338,10 +338,11 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
 # ---------------------------------------------------------
 logo_html_content = ""
 if store.get("logo_image"):
+  # Sahi tarike se uploaded logo ko render karna taake wo lazmi show ho
   logo_html_content = f"""
-    <div style="background-color: #0b1329; padding: 12px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
-        <img src="{store['logo_image']}" width="115" style="border-radius: 8px; display: block; margin: 0 auto;">
-        <div style="color: white; font-size: 11px; font-weight: bold; margin-top: 6px;">PAKISTAN CABLES</div>
+    <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
+        <img src="{store['logo_image']}" width="120" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
+        <div style="color: white; font-size: 11px; font-weight: bold; margin-top: 4px;">PAKISTAN CABLES</div>
     </div>
     """
 else:
