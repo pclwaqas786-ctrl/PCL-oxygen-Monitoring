@@ -16,9 +16,7 @@ st.set_page_config(
 
 DATA_FILE = "store_data.json"
 
-# ---------------------------------------------------------
-# LOAD OR INITIALIZE PERSISTENT STORAGE FILE
-# ---------------------------------------------------------
+# Default Store Structure
 default_store = {
     "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
     "app_subtitle": (
@@ -92,34 +90,32 @@ default_store = {
 }
 
 
-def load_store():
+# Robust Session State Initialization
+if "store" not in st.session_state:
   if os.path.exists(DATA_FILE):
     try:
       with open(DATA_FILE, "r") as f:
-        data = json.load(f)
+        loaded_data = json.load(f)
         for k in default_store:
-          if k not in data:
-            data[k] = default_store[k]
-        return data
+          if k not in loaded_data:
+            loaded_data[k] = default_store[k]
+        st.session_state.store = loaded_data
     except Exception:
-      return default_store
-  return default_store
-
-
-def save_store(data):
-  try:
-    with open(DATA_FILE, "w") as f:
-      json.dump(data, f, indent=4)
-  except Exception as e:
-    st.error(f"Error saving data: {e}")
-
-
-if "store" not in st.session_state:
-  st.session_state.store = load_store()
+      st.session_state.store = default_store
+  else:
+    st.session_state.store = default_store
 
 store = st.session_state.store
 
-# Session State Initialization for Login/Logout
+
+def save_store():
+  try:
+    with open(DATA_FILE, "w") as f:
+      json.dump(st.session_state.store, f, indent=4)
+  except Exception as e:
+    pass
+
+
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
 if "username" not in st.session_state:
@@ -277,9 +273,9 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
   new_title = st.text_input("Main Title", value=store["app_title"])
   new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
   if st.button("Save Title Settings"):
-    store["app_title"] = new_title
-    store["app_subtitle"] = new_subtitle
-    save_store(store)
+    st.session_state.store["app_title"] = new_title
+    st.session_state.store["app_subtitle"] = new_subtitle
+    save_store()
     st.success("Title updated successfully!")
     st.rerun()
 
@@ -289,17 +285,18 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
       "Upload Alarm Audio (mp3, wav, ogg)", type=["mp3", "wav", "ogg"], key="audio_up"
   )
   if uploaded_audio:
-    audio_bytes = uploaded_audio.read()
-    b64_audio = base64.b64encode(audio_bytes).decode()
-    store["alarm_sound_b64"] = f"data:audio/mp3;base64,{b64_audio}"
-    save_store(store)
+    b64_audio = base64.b64encode(uploaded_audio.read()).decode()
+    st.session_state.store["alarm_sound_b64"] = (
+        f"data:audio/mp3;base64,{b64_audio}"
+    )
+    save_store()
     st.success("Custom alarm sound uploaded successfully!")
     st.rerun()
 
   if store.get("alarm_sound_b64"):
     if st.button("Reset to Default Siren"):
-      store["alarm_sound_b64"] = ""
-      save_store(store)
+      st.session_state.store["alarm_sound_b64"] = ""
+      save_store()
       st.success("Reset to default alarm sound!")
       st.rerun()
 
@@ -315,8 +312,10 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
     file_type = uploaded_logo.type
     if not file_type:
       file_type = "image/png"
-    store["logo_image"] = f"data:{file_type};base64,{encoded_logo}"
-    save_store(store)
+    st.session_state.store["logo_image"] = (
+        f"data:{file_type};base64,{encoded_logo}"
+    )
+    save_store()
     st.success("Logo uploaded and saved successfully!")
     st.rerun()
 
@@ -329,13 +328,13 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
     bg_type = uploaded_bg.type
     if not bg_type:
       bg_type = "image/jpeg"
-    store["bg_image"] = f"data:{bg_type};base64,{encoded_bg}"
-    save_store(store)
+    st.session_state.store["bg_image"] = f"data:{bg_type};base64,{encoded_bg}"
+    save_store()
     st.success("Background wallpaper updated successfully!")
     st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (FIXED LOGO DISPLAY)
+# HEADER SECTION (DYNAMIC LOGO DISPLAY)
 # ---------------------------------------------------------
 logo_html_content = ""
 if store.get("logo_image"):
@@ -587,8 +586,12 @@ with tabs[0]:
       )
 
     if st.button("Submit & Save Reading", type="primary"):
-      current_pt["coil_prefix"] = new_coil_prefix
-      current_pt["coil_num"] = new_coil_num
+      st.session_state.store["monitoring_points"][selected_edit_idx][
+          "coil_prefix"
+      ] = new_coil_prefix
+      st.session_state.store["monitoring_points"][selected_edit_idx][
+          "coil_num"
+      ] = new_coil_num
 
       if new_coil_prefix or new_coil_num:
         full_item_str = f"{new_coil_prefix}-{new_coil_num}".strip()
@@ -597,7 +600,9 @@ with tabs[0]:
       else:
         full_item_str = current_pt["name"]
 
-      current_pt["val"] = new_val
+      st.session_state.store["monitoring_points"][selected_edit_idx][
+          "val"
+      ] = new_val
 
       if new_val == 0.0:
         st_str = "NO DATA YET"
@@ -632,8 +637,8 @@ with tabs[0]:
           "Status": st_str,
       }
 
-      store["log_history"].append(log_entry)
-      save_store(store)
+      st.session_state.store["log_history"].append(log_entry)
+      save_store()
 
       # GOOGLE SHEETS SYNC
       try:
@@ -700,22 +705,38 @@ with tabs[1]:
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
       if st.button("Save Configuration", type="primary"):
-        store["monitoring_points"][adm_edit_idx]["name"] = adm_new_name
-        store["monitoring_points"][adm_edit_idx]["coil_prefix"] = adm_new_prefix
-        store["monitoring_points"][adm_edit_idx]["norm_min"] = adm_new_min
-        store["monitoring_points"][adm_edit_idx]["min"] = adm_new_min
-        store["monitoring_points"][adm_edit_idx]["norm_max"] = adm_new_norm_max
-        store["monitoring_points"][adm_edit_idx]["caution_max"] = adm_new_caut_max
-        store["monitoring_points"][adm_edit_idx]["high"] = adm_new_caut_max
-        save_store(store)
+        st.session_state.store["monitoring_points"][adm_edit_idx]["name"] = (
+            adm_new_name
+        )
+        st.session_state.store["monitoring_points"][adm_edit_idx][
+            "coil_prefix"
+        ] = adm_new_prefix
+        st.session_state.store["monitoring_points"][adm_edit_idx]["norm_min"] = (
+            adm_new_min
+        )
+        st.session_state.store["monitoring_points"][adm_edit_idx]["min"] = (
+            adm_new_min
+        )
+        st.session_state.store["monitoring_points"][adm_edit_idx]["norm_max"] = (
+            adm_new_norm_max
+        )
+        st.session_state.store["monitoring_points"][adm_edit_idx][
+            "caution_max"
+        ] = adm_new_caut_max
+        st.session_state.store["monitoring_points"][adm_edit_idx]["high"] = (
+            adm_new_caut_max
+        )
+        save_store()
         st.success("Configuration updated successfully!")
         st.rerun()
 
     with col_btn2:
       if st.button("🗑️ Delete Selected Point", type="secondary"):
-        del_name = store["monitoring_points"][adm_edit_idx]["name"]
-        store["monitoring_points"].pop(adm_edit_idx)
-        save_store(store)
+        del_name = st.session_state.store["monitoring_points"][adm_edit_idx][
+            "name"
+        ]
+        st.session_state.store["monitoring_points"].pop(adm_edit_idx)
+        save_store()
         st.success(f"Deleted {del_name} successfully!")
         st.rerun()
 
@@ -732,7 +753,7 @@ with tabs[1]:
 
   if st.button("Add New Monitoring Point"):
     if add_p_name:
-      store["monitoring_points"].append({
+      st.session_state.store["monitoring_points"].append({
           "name": add_p_name,
           "coil_prefix": add_p_pref,
           "coil_num": add_p_coil,
@@ -743,7 +764,7 @@ with tabs[1]:
           "caution_max": 600.0,
           "high": 600.0,
       })
-      save_store(store)
+      save_store()
       st.success(f"Added {add_p_name} successfully!")
       st.rerun()
 
@@ -770,13 +791,13 @@ with tabs[2]:
 
   if st.button("Create New Account", type="primary"):
     if nu_user and nu_pass:
-      store["user_db"][nu_user] = {
+      st.session_state.store["user_db"][nu_user] = {
           "pass": nu_pass,
           "name": nu_name,
           "role": nu_role,
           "email": nu_email,
       }
-      save_store(store)
+      save_store()
       st.success(f"User '{nu_user}' created successfully!")
       st.rerun()
     else:
