@@ -24,7 +24,6 @@ if "store" not in st.session_state:
           " and 24/7 Google Sheets logging."
       ),
       "bg_image": "",
-      # Permanent built-in official Pakistan Cables themed logo
       "logo_image": "",
       "alarm_sound_b64": "",
       "user_db": {
@@ -81,7 +80,7 @@ if "store" not in st.session_state:
               "Timestamp": "2026-09-14 17:50:49",
               "User": "Admin Manager",
               "Shift": "Shift A (12 Hours)",
-              "Item Name": "CR-2002 (Top/Tail)",
+              "Item Name": "CR-2002",
               "Coil Oxygen Value (ppm)": 449.01,
               "Tundish Oxygen Value (ppm)": "",
               "Shaft Furnace Oxygen Value (ppm)": "",
@@ -295,26 +294,30 @@ else:
         st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (PERMANENT OFFICIAL PAKISTAN CABLES LOGO)
+# HEADER SECTION (HTML EMBEDDED GUARANTEED LOGO)
 # ---------------------------------------------------------
-head_col1, head_col2 = st.columns([1, 5])
+logo_html_content = ""
+if store["logo_image"]:
+  logo_html_content = f"""
+    <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
+        <img src="{store['logo_image']}" width="110" style="border-radius: 8px;">
+        <div style="color: white; font-size: 11px; font-weight: bold; margin-top: 4px;">PAKISTAN CABLES</div>
+    </div>
+    """
+else:
+  # Guaranteed Pakistan Cables Official Custom Styled Emblem Box
+  logo_html_content = """
+    <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 130px; height: 130px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
+        <div style="width: 50px; height: 50px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
+            <span style="color: #2ecc71; font-size: 26px; font-weight: bold;">✓</span>
+        </div>
+        <span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1;">PAKISTAN CABLES</span>
+    </div>
+    """
+
+head_col1, head_col2 = st.columns([1.2, 5.8])
 with head_col1:
-  if store["logo_image"]:
-    st.image(store["logo_image"], width=140)
-  else:
-    # Exact Pakistan Cables high-fidelity styled logo emblem matching your photo link
-    pak_cables_official_svg = (
-        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'"
-        " viewBox='0 0 240 240'><rect width='240' height='240' rx='30'"
-        " fill='%230b1329'/><circle cx='120' cy='105' r='65'"
-        " fill='none' stroke='%2338bdf8' stroke-width='11'/><path"
-        " d='M85 105 L110 130 L160 80' fill='none' stroke='%232ecc71'"
-        " stroke-width='14' stroke-linecap='round'"
-        " stroke-linejoin='round'/><text x='120' y='195' fill='%23ffffff'"
-        " font-size='16' font-weight='800' font-family='Arial, sans-serif'"
-        " letter-spacing='1.5' text-anchor='middle'>PAKISTAN CABLES</text></svg>"
-    )
-    st.image(pak_cables_official_svg, width=140)
+  st.markdown(logo_html_content, unsafe_allow_html=True)
 
 with head_col2:
   st.markdown(
@@ -345,7 +348,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
   val = pt["val"]
   prefix = pt.get("coil_prefix", "")
   c_num = pt.get("coil_num", "")
-  
+
   if prefix or c_num:
     full_coil_display = f"{prefix}-{c_num}".strip()
     if not prefix:
@@ -509,12 +512,12 @@ if st.session_state.logged_in:
         ["⚡ Update Readings & Coil No", "📊 Log History (Read Only)"]
     )
 
-  # TAB 1: UPDATE VALUES & COIL NUMBER (GOOGLE SHEET MATCHED COLUMNS)
+  # TAB 1: UPDATE VALUES & COIL NUMBER
   with tabs[0]:
     st.subheader("Update Live Sensor Reading & Specific Column")
     if len(store["monitoring_points"]) > 0:
       pt_names = [p["name"] for p in store["monitoring_points"]]
-      
+
       selected_edit_idx = st.selectbox(
           "1. Select Monitoring Point (Coil / Tundish / Shaft Furnace)",
           options=range(len(pt_names)),
@@ -537,7 +540,9 @@ if st.session_state.logged_in:
         )
 
       with up_col2:
-        default_num_val = float(current_pt["val"]) if current_pt["val"] > 0 else 0.0
+        default_num_val = (
+            float(current_pt["val"]) if current_pt["val"] > 0 else 0.0
+        )
         new_val = st.number_input(
             "Oxygen Value (PPM)",
             value=default_num_val,
@@ -547,16 +552,17 @@ if st.session_state.logged_in:
         )
 
       if st.button("Submit & Save Reading", type="primary"):
+        # Save values directly to session state persistent store
         current_pt["coil_prefix"] = new_coil_prefix
         current_pt["coil_num"] = new_coil_num
-        
+
         if new_coil_prefix or new_coil_num:
           full_item_str = f"{new_coil_prefix}-{new_coil_num}".strip()
           if not new_coil_prefix:
             full_item_str = new_coil_num
         else:
           full_item_str = current_pt["name"]
-          
+
         current_pt["val"] = new_val
 
         if new_val == 0.0:
@@ -570,38 +576,47 @@ if st.session_state.logged_in:
         else:
           st_str = "SAFE ZONE (Green)"
 
-        # Accurate Local Timestamp
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        user_display_name = store["user_db"].get(st.session_state.username, {}).get("name", st.session_state.username)
+        user_display_name = store["user_db"].get(
+            st.session_state.username, {}
+        ).get("name", st.session_state.username)
 
-        # Prepare exact row data matching your Google Sheet columns:
-        # A: Timestamp, B: User, C: Shift, D: Item Name, E: Coil, F: Tundish, G: Shaft Furnace, H: Status
         log_entry = {
             "Timestamp": now_str,
             "User": user_display_name,
             "Shift": st.session_state.duty_shift,
             "Item Name": full_item_str,
-            "Coil Oxygen Value (ppm)": new_val if current_pt["name"] == "Coil" else "",
-            "Tundish Oxygen Value (ppm)": new_val if current_pt["name"] == "Tundish" else "",
-            "Shaft Furnace Oxygen Value (ppm)": new_val if current_pt["name"] == "Shaft Furnace" else "",
+            "Coil Oxygen Value (ppm)": (
+                new_val if current_pt["name"] == "Coil" else ""
+            ),
+            "Tundish Oxygen Value (ppm)": (
+                new_val if current_pt["name"] == "Tundish" else ""
+            ),
+            "Shaft Furnace Oxygen Value (ppm)": (
+                new_val if current_pt["name"] == "Shaft Furnace" else ""
+            ),
             "Status": st_str,
         }
-        
+
         store["log_history"].append(log_entry)
 
-        # GOOGLE SHEETS AUTO-SYNC
+        # GOOGLE SHEETS SYNC ATTEMPT
         try:
           import gspread
+
           if "gcp_service_account" in st.secrets:
-            gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+            gc = gspread.service_account_from_dict(
+                st.secrets["gcp_service_account"]
+            )
             sh = gc.open("CCR_Oxygen_Logs")
             worksheet = sh.get_worksheet(0)
             worksheet.append_row(list(log_entry.values()))
         except Exception as e:
-          pass  # Local fallback active
+          pass
 
         st.success(
-            f"Successfully updated {current_pt['name']} ({full_item_str}) to {new_val:.2f} ppm and saved to Google Sheet!"
+            f"Successfully updated {current_pt['name']} ({full_item_str}) to"
+            f" {new_val:.2f} ppm and saved successfully!"
         )
         st.rerun()
     else:
