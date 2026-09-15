@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# INITIALIZE SESSION STATE STORE (No Dummy Values, Persistent State)
+# INITIALIZE SESSION STATE STORE
 # ---------------------------------------------------------
 if "store" not in st.session_state:
   st.session_state.store = {
@@ -24,7 +24,7 @@ if "store" not in st.session_state:
           " and 24/7 Google Sheets logging."
       ),
       "bg_image": "",
-      # Permanent built-in clean default logo placeholder (SVG/Base64) to avoid missing logo on refresh
+      # Permanent built-in professional Pakistan Cables themed factory logo (SVG)
       "logo_image": "",
       "alarm_sound_b64": "",
       "user_db": {
@@ -41,7 +41,6 @@ if "store" not in st.session_state:
               "email": "op1@pcable.com",
           },
       },
-      # Monitoring points initialized with 0.0 or actual last logged values instead of random fake numbers
       "monitoring_points": [
           {
               "name": "Coil",
@@ -296,24 +295,26 @@ else:
         st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (PERMANENT LOGO + TITLE)
+# HEADER SECTION (PERMANENT PAKISTAN CABLES LOGO + TITLE)
 # ---------------------------------------------------------
 head_col1, head_col2 = st.columns([1, 5])
 with head_col1:
   if store["logo_image"]:
     st.image(store["logo_image"], width=130)
   else:
-    # Permanent built-in professional factory/cable SVG logo to prevent missing logo on refresh
-    default_svg_logo = (
+    # Permanent professional Pakistan Cables branded industrial badge SVG logo
+    pak_cable_svg_logo = (
         "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'"
-        " viewBox='0 0 200 200'><rect width='200' height='200' rx='30'"
-        " fill='%231e293b'/><circle cx='100' cy='100' r='60'"
+        " viewBox='0 0 220 220'><rect width='220' height='220' rx='25'"
+        " fill='%230f172a'/><circle cx='110' cy='100' r='65'"
         " fill='none' stroke='%2338bdf8' stroke-width='10'/><path"
-        " d='M70 100 L90 120 L130 80' fill='none' stroke='%232ecc71'"
+        " d='M80 100 L100 120 L145 75' fill='none' stroke='%232ecc71'"
         " stroke-width='12' stroke-linecap='round'"
-        " stroke-linejoin='round'/></svg>"
+        " stroke-linejoin='round'/><text x='110' y='185' fill='%23ffffff'"
+        " font-size='18' font-weight='bold' font-family='sans-serif'"
+        " text-anchor='middle'>PAKISTAN CABLES</text></svg>"
     )
-    st.image(default_svg_logo, width=110)
+    st.image(pak_cable_svg_logo, width=130)
 
 with head_col2:
   st.markdown(
