@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# INITIALIZE SESSION STATE STORE
+# INITIALIZE SESSION STATE STORE (No Dummy Values, Persistent State)
 # ---------------------------------------------------------
 if "store" not in st.session_state:
   st.session_state.store = {
@@ -24,6 +24,7 @@ if "store" not in st.session_state:
           " and 24/7 Google Sheets logging."
       ),
       "bg_image": "",
+      # Permanent built-in clean default logo placeholder (SVG/Base64) to avoid missing logo on refresh
       "logo_image": "",
       "alarm_sound_b64": "",
       "user_db": {
@@ -40,12 +41,13 @@ if "store" not in st.session_state:
               "email": "op1@pcable.com",
           },
       },
+      # Monitoring points initialized with 0.0 or actual last logged values instead of random fake numbers
       "monitoring_points": [
           {
               "name": "Coil",
               "coil_prefix": "CR",
-              "coil_num": "2003",
-              "val": 249.0,
+              "coil_num": "2002",
+              "val": 449.01,
               "min": 150.0,
               "norm_min": 150.0,
               "norm_max": 400.0,
@@ -56,7 +58,7 @@ if "store" not in st.session_state:
               "name": "Tundish",
               "coil_prefix": "",
               "coil_num": "",
-              "val": 250.0,
+              "val": 0.0,
               "min": 150.0,
               "norm_min": 150.0,
               "norm_max": 400.0,
@@ -67,7 +69,7 @@ if "store" not in st.session_state:
               "name": "Shaft Furnace",
               "coil_prefix": "",
               "coil_num": "",
-              "val": 250.0,
+              "val": 0.0,
               "min": 150.0,
               "norm_min": 150.0,
               "norm_max": 400.0,
@@ -103,7 +105,13 @@ if "duty_shift" not in st.session_state:
 # ---------------------------------------------------------
 # CUSTOM STYLING & BACKGROUND INJECTION
 # ---------------------------------------------------------
-bg_css = ""
+bg_css = """
+    <style>
+    .stApp {
+        background-color: #0F172A;
+    }
+    </style>
+    """
 if store["bg_image"]:
   bg_css = f"""
     <style>
@@ -111,14 +119,6 @@ if store["bg_image"]:
         background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{store['bg_image']}") no-repeat center center fixed;
         background-size: cover;
     }}
-    </style>
-    """
-else:
-  bg_css = """
-    <style>
-    .stApp {
-        background-color: #0F172A;
-    }
     </style>
     """
 
@@ -284,6 +284,7 @@ else:
         encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
         store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
         st.success("Logo uploaded successfully!")
+        st.rerun()
 
       uploaded_bg = st.file_uploader(
           "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
@@ -295,16 +296,24 @@ else:
         st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (LOGO + TITLE)
+# HEADER SECTION (PERMANENT LOGO + TITLE)
 # ---------------------------------------------------------
 head_col1, head_col2 = st.columns([1, 5])
 with head_col1:
   if store["logo_image"]:
     st.image(store["logo_image"], width=130)
   else:
-    st.markdown(
-        "<h1 style='font-size: 70px; margin:0;'>🏭</h1>", unsafe_allow_html=True
+    # Permanent built-in professional factory/cable SVG logo to prevent missing logo on refresh
+    default_svg_logo = (
+        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'"
+        " viewBox='0 0 200 200'><rect width='200' height='200' rx='30'"
+        " fill='%231e293b'/><circle cx='100' cy='100' r='60'"
+        " fill='none' stroke='%2338bdf8' stroke-width='10'/><path"
+        " d='M70 100 L90 120 L130 80' fill='none' stroke='%232ecc71'"
+        " stroke-width='12' stroke-linecap='round'"
+        " stroke-linejoin='round'/></svg>"
     )
+    st.image(default_svg_logo, width=110)
 
 with head_col2:
   st.markdown(
@@ -338,10 +347,17 @@ for idx, pt in enumerate(store["monitoring_points"]):
   
   if prefix or c_num:
     full_coil_display = f"{prefix}-{c_num}".strip()
+    if not prefix:
+      full_coil_display = c_num
   else:
     full_coil_display = "N/A"
 
-  if val < pt["norm_min"]:
+  if val == 0.0:
+    status_label = "NO DATA YET"
+    val_class = "card-val-green"
+    badge_class = "badge-safe"
+    sub_desc = "Awaiting first reading input."
+  elif val < pt["norm_min"]:
     status_label = "CRITICAL ALERT (Red)"
     val_class = "card-val-red"
     badge_class = "badge-critical"
@@ -520,9 +536,10 @@ if st.session_state.logged_in:
         )
 
       with up_col2:
+        default_num_val = float(current_pt["val"]) if current_pt["val"] > 0 else 0.0
         new_val = st.number_input(
             "Oxygen Value (PPM)",
-            value=float(current_pt["val"]),
+            value=default_num_val,
             step=0.01,
             format="%.2f",
             key="up_ppm",
@@ -541,7 +558,9 @@ if st.session_state.logged_in:
           
         current_pt["val"] = new_val
 
-        if new_val < current_pt["norm_min"]:
+        if new_val == 0.0:
+          st_str = "NO DATA YET"
+        elif new_val < current_pt["norm_min"]:
           st_str = "CRITICAL ALERT (Red)"
         elif new_val > current_pt["caution_max"]:
           st_str = "CRITICAL ALERT (Red)"
@@ -670,7 +689,7 @@ if st.session_state.logged_in:
           "Default Number/Code", value="101", key="new_p_c"
       )
       add_p_val = st.number_input(
-          "Initial Oxygen Value", value=250.0, key="new_p_v"
+          "Initial Oxygen Value", value=0.0, key="new_p_v"
       )
 
       if st.button("Add New Monitoring Point"):
