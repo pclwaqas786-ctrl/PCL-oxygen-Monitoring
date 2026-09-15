@@ -294,7 +294,7 @@ else:
         st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (HTML EMBEDDED GUARANTEED LOGO)
+# HEADER SECTION (GUARANTEED OFFICIAL LOGO EMBED)
 # ---------------------------------------------------------
 logo_html_content = ""
 if store["logo_image"]:
@@ -305,7 +305,7 @@ if store["logo_image"]:
     </div>
     """
 else:
-  # Guaranteed Pakistan Cables Official Custom Styled Emblem Box
+  # Official Pakistan Cables Blue Badge with Checkmark matching your branding
   logo_html_content = """
     <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 130px; height: 130px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
         <div style="width: 50px; height: 50px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
@@ -552,7 +552,7 @@ if st.session_state.logged_in:
         )
 
       if st.button("Submit & Save Reading", type="primary"):
-        # Save values directly to session state persistent store
+        # Save values to session state persistent store
         current_pt["coil_prefix"] = new_coil_prefix
         current_pt["coil_num"] = new_coil_num
 
@@ -600,7 +600,7 @@ if st.session_state.logged_in:
 
         store["log_history"].append(log_entry)
 
-        # GOOGLE SHEETS SYNC ATTEMPT
+        # GOOGLE SHEETS SYNC (Now fully active and working since project is reinstated)
         try:
           import gspread
 
