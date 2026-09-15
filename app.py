@@ -119,10 +119,11 @@ if "store" not in st.session_state:
 
 store = st.session_state.store
 
+# Sahi Session States for Login / Logout Management
 if "logged_in" not in st.session_state:
-  st.session_state.logged_in = True
+  st.session_state.logged_in = False
 if "username" not in st.session_state:
-  st.session_state.username = "admin"
+  st.session_state.username = ""
 if "duty_shift" not in st.session_state:
   st.session_state.duty_shift = "Shift A (12 Hours)"
 
@@ -231,19 +232,7 @@ st.markdown(
 # ---------------------------------------------------------
 st.sidebar.markdown("### 🔐 User Login & Controls")
 
-if st.session_state.logged_in:
-  user_info = store["user_db"].get(
-      st.session_state.username, {"name": "Admin Manager", "role": "admin"}
-  )
-  st.sidebar.success(
-      f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
-  )
-
-  if st.sidebar.button("🚪 Logout", type="secondary"):
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.rerun()
-else:
+if not st.session_state.logged_in:
   st.sidebar.warning("Please log in to continue.")
   login_user = st.sidebar.text_input("Username", key="login_u")
   login_pass = st.sidebar.text_input(
@@ -262,7 +251,20 @@ else:
       st.sidebar.error("Invalid Username or Password")
   st.stop()
 
-# sirf 2 shifts (Shift A aur Shift B)
+# Agar logged in hai toh info show karo aur logout button do
+user_info = store["user_db"].get(
+    st.session_state.username, {"name": "Admin Manager", "role": "admin"}
+)
+st.sidebar.success(
+    f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
+)
+
+if st.sidebar.button("🚪 Logout", type="secondary"):
+  st.session_state.logged_in = False
+  st.session_state.username = ""
+  st.rerun()
+
+# Sirf 2 shifts (Shift A aur Shift B)
 st.session_state.duty_shift = st.sidebar.selectbox(
     "Select Duty Shift", ["Shift A (12 Hours)", "Shift B (12 Hours)"], index=0
 )
@@ -309,7 +311,6 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
   if uploaded_logo:
     file_bytes = uploaded_logo.read()
     encoded_logo = base64.b64encode(file_bytes).decode()
-    # Dynamic MIME type detection taake image hamesha show ho
     file_type = uploaded_logo.type
     if not file_type:
       file_type = "image/png"
