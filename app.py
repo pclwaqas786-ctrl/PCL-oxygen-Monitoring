@@ -109,7 +109,7 @@ def load_store():
 def save_store(data):
   try:
     with open(DATA_FILE, "w") as f:
-      json.dump(data, f)
+      json.dump(data, f, indent=4)
   except Exception as e:
     st.error(f"Error saving data: {e}")
 
@@ -289,7 +289,8 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
       "Upload Alarm Audio (mp3, wav, ogg)", type=["mp3", "wav", "ogg"], key="audio_up"
   )
   if uploaded_audio:
-    b64_audio = base64.b64encode(uploaded_audio.read()).decode()
+    audio_bytes = uploaded_audio.read()
+    b64_audio = base64.b64encode(audio_bytes).decode()
     store["alarm_sound_b64"] = f"data:audio/mp3;base64,{b64_audio}"
     save_store(store)
     st.success("Custom alarm sound uploaded successfully!")
@@ -309,8 +310,8 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
       "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
   )
   if uploaded_logo:
-    file_bytes = uploaded_logo.read()
-    encoded_logo = base64.b64encode(file_bytes).decode()
+    logo_bytes = uploaded_logo.read()
+    encoded_logo = base64.b64encode(logo_bytes).decode()
     file_type = uploaded_logo.type
     if not file_type:
       file_type = "image/png"
@@ -338,7 +339,6 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
 # ---------------------------------------------------------
 logo_html_content = ""
 if store.get("logo_image"):
-  # Sahi tarike se uploaded logo ko render karna taake wo lazmi show ho
   logo_html_content = f"""
     <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
         <img src="{store['logo_image']}" width="120" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
@@ -583,7 +583,7 @@ with tabs[0]:
           value=default_num_val,
           step=0.01,
           format="%.2f",
-          key="up_ppm",
+          key="up_ppm_val",
       )
 
     if st.button("Submit & Save Reading", type="primary"):
