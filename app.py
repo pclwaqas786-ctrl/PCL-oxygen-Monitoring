@@ -1,6 +1,7 @@
 import base64
 import datetime
 import json
+import os
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -13,90 +14,104 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+DATA_FILE = "store_data.json"
+
 # ---------------------------------------------------------
-# INITIALIZE PERSISTENT SESSION STATE STORE
+# LOAD OR INITIALIZE PERSISTENT STORAGE FILE
 # ---------------------------------------------------------
+default_store = {
+    "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
+    "app_subtitle": (
+        "Real-time oxygen tracking system with individual item thresholds and"
+        " 24/7 Google Sheets logging."
+    ),
+    "bg_image": "",
+    "logo_image": "",
+    "alarm_sound_b64": "",
+    "user_db": {
+        "admin": {
+            "pass": "admin123",
+            "name": "Admin Manager",
+            "role": "admin",
+            "email": "admin@pcable.com",
+        },
+        "operator1": {
+            "pass": "user123",
+            "name": "Shift Officer 1",
+            "role": "operator",
+            "email": "op1@pcable.com",
+        },
+    },
+    "monitoring_points": [
+        {
+            "name": "Coil",
+            "coil_prefix": "CR",
+            "coil_num": "2002",
+            "val": 449.01,
+            "min": 150.0,
+            "norm_min": 150.0,
+            "norm_max": 400.0,
+            "caution_max": 600.0,
+            "high": 600.0,
+        },
+        {
+            "name": "Tundish",
+            "coil_prefix": "",
+            "coil_num": "",
+            "val": 0.0,
+            "min": 150.0,
+            "norm_min": 150.0,
+            "norm_max": 400.0,
+            "caution_max": 600.0,
+            "high": 600.0,
+        },
+        {
+            "name": "Shaft Furnace",
+            "coil_prefix": "",
+            "coil_num": "",
+            "val": 0.0,
+            "min": 150.0,
+            "norm_min": 150.0,
+            "norm_max": 400.0,
+            "caution_max": 600.0,
+            "high": 600.0,
+        },
+    ],
+    "log_history": [
+        {
+            "Timestamp": "2026-09-14 17:50:49",
+            "User": "Admin Manager",
+            "Shift": "Shift A (12 Hours)",
+            "Item Name": "CR-2002",
+            "Coil Oxygen Value (ppm)": 449.01,
+            "Tundish Oxygen Value (ppm)": "",
+            "Shaft Furnace Oxygen Value (ppm)": "",
+            "Status": "CAUTION ZONE (Orange)",
+        }
+    ],
+}
+
+
+def load_store():
+  if os.path.exists(DATA_FILE):
+    try:
+      with open(DATA_FILE, "r") as f:
+        return json.load(f)
+    except Exception:
+      return default_store
+  return default_store
+
+
+def save_store(data):
+  with open(DATA_FILE, "w") as f:
+    json.dump(data, f)
+
+
 if "store" not in st.session_state:
-  st.session_state.store = {
-      "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
-      "app_subtitle": (
-          "Real-time oxygen tracking system with individual item thresholds"
-          " and 24/7 Google Sheets logging."
-      ),
-      "bg_image": "",
-      "logo_image": "",
-      "alarm_sound_b64": "",
-      "user_db": {
-          "admin": {
-              "pass": "admin123",
-              "name": "Admin Manager",
-              "role": "admin",
-              "email": "admin@pcable.com",
-          },
-          "operator1": {
-              "pass": "user123",
-              "name": "Shift Officer 1",
-              "role": "operator",
-              "email": "op1@pcable.com",
-          },
-      },
-      "monitoring_points": [
-          {
-              "name": "Coil",
-              "coil_prefix": "CR",
-              "coil_num": "2002",
-              "val": 449.01,
-              "min": 150.0,
-              "norm_min": 150.0,
-              "norm_max": 400.0,
-              "caution_max": 600.0,
-              "high": 600.0,
-          },
-          {
-              "name": "Tundish",
-              "coil_prefix": "",
-              "coil_num": "",
-              "val": 0.0,
-              "min": 150.0,
-              "norm_min": 150.0,
-              "norm_max": 400.0,
-              "caution_max": 600.0,
-              "high": 600.0,
-          },
-          {
-              "name": "Shaft Furnace",
-              "coil_prefix": "",
-              "coil_num": "",
-              "val": 0.0,
-              "min": 150.0,
-              "norm_min": 150.0,
-              "norm_max": 400.0,
-              "caution_max": 600.0,
-              "high": 600.0,
-          },
-      ],
-      "log_history": [
-          {
-              "Timestamp": "2026-09-14 17:50:49",
-              "User": "Admin Manager",
-              "Shift": "Shift A (12 Hours)",
-              "Item Name": "CR-2002",
-              "Coil Oxygen Value (ppm)": 449.01,
-              "Tundish Oxygen Value (ppm)": "",
-              "Shaft Furnace Oxygen Value (ppm)": "",
-              "Status": "CAUTION ZONE (Orange)",
-          }
-      ],
-  }
+  st.session_state.store = load_store()
 
 store = st.session_state.store
 
-if "logged_in" not in st.session_state:
-  st.session_state.logged_in = True  # Default to True so controls show up instantly without blocking
-if "username" not in st.session_state:
-  st.session_state.username = "admin"
-if "user_role" not in st.session_state:
-  st.session_state.user_role = "admin"
 if "duty_shift" not in st.session_state:
   st.session_state.duty_shift = "Shift A (12 Hours)"
 
@@ -110,7 +125,7 @@ bg_css = """
     }
     </style>
     """
-if store["bg_image"]:
+if store.get("bg_image"):
   bg_css = f"""
     <style>
     .stApp {{
@@ -204,13 +219,7 @@ st.markdown(
 # SIDEBAR CONTROLS (LOGIN & ADMIN SETTINGS)
 # ---------------------------------------------------------
 st.sidebar.markdown("### 🔐 User Login & Controls")
-
-user_info = store["user_db"].get(
-    st.session_state.username, {"name": "Admin Manager", "role": "admin"}
-)
-st.sidebar.success(
-    f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
-)
+st.sidebar.success("Logged in as: **Admin Manager** (ADMIN)")
 st.session_state.duty_shift = st.sidebar.selectbox(
     "Select Duty Shift",
     ["Shift A (12 Hours)", "Shift B (12 Hours)", "Shift C (8 Hours)"],
@@ -227,6 +236,7 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
   if st.button("Save Title Settings"):
     store["app_title"] = new_title
     store["app_subtitle"] = new_subtitle
+    save_store(store)
     st.success("Title updated successfully!")
     st.rerun()
 
@@ -238,12 +248,14 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
   if uploaded_audio:
     b64_audio = base64.b64encode(uploaded_audio.read()).decode()
     store["alarm_sound_b64"] = f"data:audio/mp3;base64,{b64_audio}"
+    save_store(store)
     st.success("Custom alarm sound uploaded successfully!")
     st.rerun()
 
-  if store["alarm_sound_b64"]:
+  if store.get("alarm_sound_b64"):
     if st.button("Reset to Default Siren"):
       store["alarm_sound_b64"] = ""
+      save_store(store)
       st.success("Reset to default alarm sound!")
       st.rerun()
 
@@ -256,6 +268,7 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
   if uploaded_logo:
     encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
     store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
+    save_store(store)
     st.success("Logo uploaded successfully!")
     st.rerun()
 
@@ -265,6 +278,7 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
   if uploaded_bg:
     encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
     store["bg_image"] = f"data:image/jpeg;base64,{encoded_bg}"
+    save_store(store)
     st.success("Background wallpaper updated successfully!")
     st.rerun()
 
@@ -272,7 +286,7 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
 # HEADER SECTION (GUARANTEED LOGO DISPLAY)
 # ---------------------------------------------------------
 logo_html_content = ""
-if store["logo_image"]:
+if store.get("logo_image"):
   logo_html_content = f"""
     <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
         <img src="{store['logo_image']}" width="110" style="border-radius: 8px;">
@@ -280,7 +294,6 @@ if store["logo_image"]:
     </div>
     """
 else:
-  # Official Pakistan Cables Blue Badge with Checkmark
   logo_html_content = """
     <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 130px; height: 130px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
         <div style="width: 50px; height: 50px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
@@ -296,7 +309,8 @@ with head_col1:
 
 with head_col2:
   st.markdown(
-      f"<h1 style='margin-bottom:0; font-weight:800; color: white;'>{store['app_title']}</h1>",
+      f"<h1 style='margin-bottom:0; font-weight:800; color:"
+      f" white;'>{store['app_title']}</h1>",
       unsafe_allow_html=True,
   )
   st.markdown(
@@ -545,13 +559,10 @@ with tabs[0]:
         st_str = "SAFE ZONE (Green)"
 
       now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-      user_display_name = store["user_db"].get(st.session_state.username, {}).get(
-          "name", st.session_state.username
-      )
 
       log_entry = {
           "Timestamp": now_str,
-          "User": user_display_name,
+          "User": "Admin Manager",
           "Shift": st.session_state.duty_shift,
           "Item Name": full_item_str,
           "Coil Oxygen Value (ppm)": (
@@ -567,6 +578,7 @@ with tabs[0]:
       }
 
       store["log_history"].append(log_entry)
+      save_store(store)
 
       # GOOGLE SHEETS SYNC
       try:
@@ -640,6 +652,7 @@ with tabs[1]:
         store["monitoring_points"][adm_edit_idx]["norm_max"] = adm_new_norm_max
         store["monitoring_points"][adm_edit_idx]["caution_max"] = adm_new_caut_max
         store["monitoring_points"][adm_edit_idx]["high"] = adm_new_caut_max
+        save_store(store)
         st.success("Configuration updated successfully!")
         st.rerun()
 
@@ -647,6 +660,7 @@ with tabs[1]:
       if st.button("🗑️ Delete Selected Point", type="secondary"):
         del_name = store["monitoring_points"][adm_edit_idx]["name"]
         store["monitoring_points"].pop(adm_edit_idx)
+        save_store(store)
         st.success(f"Deleted {del_name} successfully!")
         st.rerun()
 
@@ -674,6 +688,7 @@ with tabs[1]:
           "caution_max": 600.0,
           "high": 600.0,
       })
+      save_store(store)
       st.success(f"Added {add_p_name} successfully!")
       st.rerun()
 
@@ -706,6 +721,7 @@ with tabs[2]:
           "role": nu_role,
           "email": nu_email,
       }
+      save_store(store)
       st.success(f"User '{nu_user}' created successfully!")
       st.rerun()
     else:
