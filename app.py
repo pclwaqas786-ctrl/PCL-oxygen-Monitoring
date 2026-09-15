@@ -246,11 +246,9 @@ else:
 
   st.sidebar.markdown("---")
 
-  # ADMIN ONLY SETTINGS PANEL IN SIDEBAR (Expanded by default for convenience)
+  # ADMIN ONLY SETTINGS PANEL IN SIDEBAR
   if st.session_state.user_role == "admin":
-    with st.sidebar.expander(
-        "⚙️ Admin Settings & Branding", expanded=True
-    ):
+    with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
       st.markdown("#### App Title Settings")
       new_title = st.text_input("Main Title", value=store["app_title"])
       new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
@@ -269,7 +267,6 @@ else:
         b64_audio = base64.b64encode(uploaded_audio.read()).decode()
         store["alarm_sound_b64"] = f"data:audio/mp3;base64,{b64_audio}"
         st.success("Custom alarm sound uploaded successfully!")
-        st.rerun()
 
       if store["alarm_sound_b64"]:
         if st.button("Reset to Default Siren"):
@@ -286,7 +283,6 @@ else:
         encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
         store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
         st.success("Logo uploaded successfully!")
-        st.rerun()
 
       uploaded_bg = st.file_uploader(
           "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
