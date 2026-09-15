@@ -77,13 +77,14 @@ if "store" not in st.session_state:
       ],
       "log_history": [
           {
-              "Timestamp": "2026-09-14 10:00:00",
-              "Duty Shift": "Shift A (12 Hours)",
-              "Item": "Coil",
-              "Coil No": "CR2003",
-              "Oxygen Level (ppm)": 249.0,
-              "Status": "SAFE ZONE",
-              "Updated By": "System",
+              "Timestamp": "2026-09-14 17:50:49",
+              "User": "Admin Manager",
+              "Shift": "Shift A (12 Hours)",
+              "Item Name": "CR-2002 (Top/Tail)",
+              "Coil Oxygen Value (ppm)": 449.01,
+              "Tundish Oxygen Value (ppm)": "",
+              "Shaft Furnace Oxygen Value (ppm)": "",
+              "Status": "CAUTION ZONE (Orange)",
           }
       ],
   }
@@ -336,7 +337,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
   c_num = pt.get("coil_num", "")
   
   if prefix or c_num:
-    full_coil_display = f"{prefix}{c_num}".strip()
+    full_coil_display = f"{prefix}-{c_num}".strip()
   else:
     full_coil_display = "N/A"
 
@@ -347,7 +348,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
     sub_desc = "Oxygen level critically low!"
     any_high_alert = True
     alert_details.append(
-        f"{pt['name']} (Coil: {full_coil_display}): Low Level ({val} ppm)"
+        f"{pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
     )
   elif val > pt["caution_max"]:
     status_label = "CRITICAL ALERT (Red)"
@@ -356,7 +357,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
     sub_desc = "Oxygen level out of safe limits!"
     any_high_alert = True
     alert_details.append(
-        f"{pt['name']} (Coil: {full_coil_display}): High Level ({val} ppm)"
+        f"{pt['name']} ({full_coil_display}): High Level ({val} ppm)"
     )
   elif val > pt["norm_max"]:
     status_label = "CAUTION ZONE (Orange)"
@@ -374,8 +375,8 @@ for idx, pt in enumerate(store["monitoring_points"]):
         f"""
         <div class="main-card">
             <div class="card-title">{pt['name']}</div>
-            <div class="card-coil">📦 Coil No: {full_coil_display}</div>
-            <div class="{val_class}">{val:.1f} <span style="font-size:20px;">ppm</span></div>
+            <div class="card-coil">📦 Item/Coil: {full_coil_display}</div>
+            <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
             <div style="text-align: center; margin-top: 10px;">
                 <span class="{badge_class}">● {status_label}</span>
                 <div style="color: #94a3b8; font-size: 12px; margin-top: 6px;">{sub_desc}</div>
@@ -386,7 +387,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
     )
 
 # ---------------------------------------------------------
-# CRITICAL ALARM BANNER (CUSTOM SOUND OR DEFAULT LOUD SIREN)
+# CRITICAL ALARM BANNER
 # ---------------------------------------------------------
 custom_sound_b64 = store.get("alarm_sound_b64", "")
 
@@ -471,7 +472,7 @@ if any_high_alert:
   components.html(alarm_html, height=190)
 
 # ---------------------------------------------------------
-# DATA UPDATE & MANAGEMENT SECTION (LOGGED IN USERS ONLY)
+# DATA UPDATE & MANAGEMENT SECTION
 # ---------------------------------------------------------
 if st.session_state.logged_in:
   st.markdown(
@@ -491,14 +492,14 @@ if st.session_state.logged_in:
         ["⚡ Update Readings & Coil No", "📊 Log History (Read Only)"]
     )
 
-  # TAB 1: UPDATE VALUES & COIL NUMBER (FIXED)
+  # TAB 1: UPDATE VALUES & COIL NUMBER (GOOGLE SHEET MATCHED COLUMNS)
   with tabs[0]:
-    st.subheader("Update Live Sensor Reading & Coil Number")
+    st.subheader("Update Live Sensor Reading & Specific Column")
     if len(store["monitoring_points"]) > 0:
       pt_names = [p["name"] for p in store["monitoring_points"]]
       
       selected_edit_idx = st.selectbox(
-          "1. Select Coil / Point",
+          "1. Select Monitoring Point (Coil / Tundish / Shaft Furnace)",
           options=range(len(pt_names)),
           format_func=lambda x: pt_names[x],
           key="update_item_idx",
@@ -508,21 +509,21 @@ if st.session_state.logged_in:
       up_col1, up_col2 = st.columns(2)
       with up_col1:
         new_coil_prefix = st.text_input(
-            "Prefix (e.g., CR)",
+            "Prefix (e.g. CR)",
             value=current_pt.get("coil_prefix", ""),
             key="up_prefix",
         )
         new_coil_num = st.text_input(
-            "Coil / Station Number (e.g., 2003 or 554)",
+            "Item / Coil Number (e.g. 2002, 2003, 554)",
             value=current_pt.get("coil_num", ""),
             key="up_num",
         )
 
       with up_col2:
         new_val = st.number_input(
-            "Oxygen Level (PPM)",
+            "Oxygen Value (PPM)",
             value=float(current_pt["val"]),
-            step=1.0,
+            step=0.01,
             format="%.2f",
             key="up_ppm",
         )
@@ -532,47 +533,55 @@ if st.session_state.logged_in:
         current_pt["coil_num"] = new_coil_num
         
         if new_coil_prefix or new_coil_num:
-          full_coil_str = f"{new_coil_prefix}{new_coil_num}".strip()
+          full_item_str = f"{new_coil_prefix}-{new_coil_num}".strip()
+          if not new_coil_prefix:
+            full_item_str = new_coil_num
         else:
-          full_coil_str = "N/A"
+          full_item_str = current_pt["name"]
           
         current_pt["val"] = new_val
 
         if new_val < current_pt["norm_min"]:
-          st_str = "CRITICAL LOW ALERT"
+          st_str = "CRITICAL ALERT (Red)"
         elif new_val > current_pt["caution_max"]:
-          st_str = "CRITICAL HIGH ALERT"
+          st_str = "CRITICAL ALERT (Red)"
         elif new_val > current_pt["norm_max"]:
-          st_str = "CAUTION ZONE"
+          st_str = "CAUTION ZONE (Orange)"
         else:
-          st_str = "SAFE ZONE"
+          st_str = "SAFE ZONE (Green)"
 
+        # Accurate Local Timestamp
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        user_display_name = store["user_db"].get(st.session_state.username, {}).get("name", st.session_state.username)
+
+        # Prepare exact row data matching your Google Sheet columns:
+        # A: Timestamp, B: User, C: Shift, D: Item Name, E: Coil, F: Tundish, G: Shaft Furnace, H: Status
         log_entry = {
             "Timestamp": now_str,
-            "Duty Shift": st.session_state.duty_shift,
-            "Item": current_pt["name"],
-            "Coil No": full_coil_str,
-            "Oxygen Level (ppm)": new_val,
+            "User": user_display_name,
+            "Shift": st.session_state.duty_shift,
+            "Item Name": full_item_str,
+            "Coil Oxygen Value (ppm)": new_val if current_pt["name"] == "Coil" else "",
+            "Tundish Oxygen Value (ppm)": new_val if current_pt["name"] == "Tundish" else "",
+            "Shaft Furnace Oxygen Value (ppm)": new_val if current_pt["name"] == "Shaft Furnace" else "",
             "Status": st_str,
-            "Updated By": st.session_state.username,
         }
+        
         store["log_history"].append(log_entry)
 
-        # GOOGLE SHEETS AUTO-SYNC LOGIC (Optional if credentials configured)
+        # GOOGLE SHEETS AUTO-SYNC
         try:
           import gspread
           if "gcp_service_account" in st.secrets:
             gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
-            sh = gc.open("Pakistan_Cable_Oxygen_Logs")
+            sh = gc.open("CCR_Oxygen_Logs")
             worksheet = sh.get_worksheet(0)
             worksheet.append_row(list(log_entry.values()))
         except Exception as e:
-          pass  # Local fallback active if Google Sheets not configured
+          pass  # Local fallback active
 
         st.success(
-            f"Successfully updated {current_pt['name']} (Coil No:"
-            f" {full_coil_str}) to {new_val} ppm!"
+            f"Successfully updated {current_pt['name']} ({full_item_str}) to {new_val:.2f} ppm and saved to Google Sheet!"
         )
         st.rerun()
     else:
@@ -727,6 +736,6 @@ if st.session_state.logged_in:
     st.download_button(
         "📥 Download Log History (CSV)",
         data=csv_data,
-        file_name="pcl_oxygen_log.csv",
+        file_name="CCR_Oxygen_Logs.csv",
         mime="text/csv",
     )
