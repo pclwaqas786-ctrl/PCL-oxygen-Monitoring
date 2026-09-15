@@ -96,15 +96,22 @@ def load_store():
   if os.path.exists(DATA_FILE):
     try:
       with open(DATA_FILE, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+        for k in default_store:
+          if k not in data:
+            data[k] = default_store[k]
+        return data
     except Exception:
       return default_store
   return default_store
 
 
 def save_store(data):
-  with open(DATA_FILE, "w") as f:
-    json.dump(data, f)
+  try:
+    with open(DATA_FILE, "w") as f:
+      json.dump(data, f)
+  except Exception as e:
+    st.error(f"Error saving data: {e}")
 
 
 if "store" not in st.session_state:
@@ -112,6 +119,10 @@ if "store" not in st.session_state:
 
 store = st.session_state.store
 
+if "logged_in" not in st.session_state:
+  st.session_state.logged_in = True
+if "username" not in st.session_state:
+  st.session_state.username = "admin"
 if "duty_shift" not in st.session_state:
   st.session_state.duty_shift = "Shift A (12 Hours)"
 
@@ -216,14 +227,44 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# SIDEBAR CONTROLS (LOGIN & ADMIN SETTINGS)
+# SIDEBAR CONTROLS (LOGIN, LOGOUT & ADMIN SETTINGS)
 # ---------------------------------------------------------
 st.sidebar.markdown("### 🔐 User Login & Controls")
-st.sidebar.success("Logged in as: **Admin Manager** (ADMIN)")
+
+if st.session_state.logged_in:
+  user_info = store["user_db"].get(
+      st.session_state.username, {"name": "Admin Manager", "role": "admin"}
+  )
+  st.sidebar.success(
+      f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
+  )
+
+  if st.sidebar.button("🚪 Logout", type="secondary"):
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.rerun()
+else:
+  st.sidebar.warning("Please log in to continue.")
+  login_user = st.sidebar.text_input("Username", key="login_u")
+  login_pass = st.sidebar.text_input(
+      "Password", type="password", key="login_p"
+  )
+  if st.sidebar.button("Login", type="primary"):
+    if (
+        login_user in store["user_db"]
+        and store["user_db"][login_user]["pass"] == login_pass
+    ):
+      st.session_state.logged_in = True
+      st.session_state.username = login_user
+      st.success("Logged in successfully!")
+      st.rerun()
+    else:
+      st.sidebar.error("Invalid Username or Password")
+  st.stop()
+
+# sirf 2 shifts (Shift A aur Shift B)
 st.session_state.duty_shift = st.sidebar.selectbox(
-    "Select Duty Shift",
-    ["Shift A (12 Hours)", "Shift B (12 Hours)", "Shift C (8 Hours)"],
-    index=0,
+    "Select Duty Shift", ["Shift A (12 Hours)", "Shift B (12 Hours)"], index=0
 )
 
 st.sidebar.markdown("---")
@@ -266,31 +307,40 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
       "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
   )
   if uploaded_logo:
-    encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
-    store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
+    file_bytes = uploaded_logo.read()
+    encoded_logo = base64.b64encode(file_bytes).decode()
+    # Dynamic MIME type detection taake image hamesha show ho
+    file_type = uploaded_logo.type
+    if not file_type:
+      file_type = "image/png"
+    store["logo_image"] = f"data:{file_type};base64,{encoded_logo}"
     save_store(store)
-    st.success("Logo uploaded successfully!")
+    st.success("Logo uploaded and saved successfully!")
     st.rerun()
 
   uploaded_bg = st.file_uploader(
       "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
   )
   if uploaded_bg:
-    encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
-    store["bg_image"] = f"data:image/jpeg;base64,{encoded_bg}"
+    bg_bytes = uploaded_bg.read()
+    encoded_bg = base64.b64encode(bg_bytes).decode()
+    bg_type = uploaded_bg.type
+    if not bg_type:
+      bg_type = "image/jpeg"
+    store["bg_image"] = f"data:{bg_type};base64,{encoded_bg}"
     save_store(store)
     st.success("Background wallpaper updated successfully!")
     st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (GUARANTEED LOGO DISPLAY)
+# HEADER SECTION (FIXED LOGO DISPLAY)
 # ---------------------------------------------------------
 logo_html_content = ""
 if store.get("logo_image"):
   logo_html_content = f"""
-    <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
-        <img src="{store['logo_image']}" width="110" style="border-radius: 8px;">
-        <div style="color: white; font-size: 11px; font-weight: bold; margin-top: 4px;">PAKISTAN CABLES</div>
+    <div style="background-color: #0b1329; padding: 12px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
+        <img src="{store['logo_image']}" width="115" style="border-radius: 8px; display: block; margin: 0 auto;">
+        <div style="color: white; font-size: 11px; font-weight: bold; margin-top: 6px;">PAKISTAN CABLES</div>
     </div>
     """
 else:
@@ -559,10 +609,13 @@ with tabs[0]:
         st_str = "SAFE ZONE (Green)"
 
       now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      user_display_name = store["user_db"].get(st.session_state.username, {}).get(
+          "name", st.session_state.username
+      )
 
       log_entry = {
           "Timestamp": now_str,
-          "User": "Admin Manager",
+          "User": user_display_name,
           "Shift": st.session_state.duty_shift,
           "Item Name": full_item_str,
           "Coil Oxygen Value (ppm)": (
