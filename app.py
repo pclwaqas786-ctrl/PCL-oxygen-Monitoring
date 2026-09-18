@@ -4,6 +4,7 @@ import json
 import os
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Set Page Config
 st.set_page_config(
@@ -32,8 +33,8 @@ default_store = {
         {
             "name": "ROD",
             "coil_prefix": "CR",
-            "coil_num": "2002",
-            "val": 876.0,
+            "coil_num": "1234",
+            "val": 556.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
             "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
@@ -42,7 +43,7 @@ default_store = {
             "name": "Tundish",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 476.0,
+            "val": 185.97,
             "min_limit": 100.0,
             "max_limit": 350.0,
             "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
@@ -51,7 +52,7 @@ default_store = {
             "name": "Shaft Furnace(SF)",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 200.0,
+            "val": 0.0,
             "min_limit": 100.0,
             "max_limit": 650.0,
             "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
@@ -60,7 +61,7 @@ default_store = {
             "name": "Holding furnace(HF)",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 0.0,
+            "val": 450.0,
             "min_limit": 100.0,
             "max_limit": 500.0,
             "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
@@ -99,7 +100,7 @@ if "duty_shift" not in st.session_state:
 if "muted_stations" not in st.session_state:
     st.session_state.muted_stations = {}
 
-# CSS Styling with Extra Large Fonts
+# CSS Styling
 st.markdown(
     """
 <style>
@@ -216,9 +217,9 @@ with head_col2:
 
 st.markdown("---")
 
-# Check which stations have critical alerts and manage sound per station
-has_active_critical = False
+# Alarm Condition Check (Including 0 value if out of min/max range)
 play_audio = False
+critical_stations = []
 
 for pt in store["monitoring_points"]:
     s_name = pt["name"]
@@ -226,26 +227,38 @@ for pt in store["monitoring_points"]:
     min_l = pt.get("min_limit", 100.0)
     max_l = pt.get("max_limit", 350.0)
 
-    if val > 0 and (val < min_l or val > max_l):
-        has_active_critical = True
-        # If this specific station is NOT muted, trigger sound
+    # FIXED: 0 is checked against min_limit/max_limit as well
+    if val < min_l or val > max_l:
+        critical_stations.append(s_name)
         if not st.session_state.muted_stations.get(s_name, False):
             play_audio = True
 
-# Play the loud custom alarm audio if any unmuted station is critical
+# Sound Player with Auto-retry JavaScript
 if play_audio:
     st.error(
-        "🚨 CRITICAL ALERT: Oxygen value out of range! Continuous custom alarm ringing..."
+        f"🚨 CRITICAL ALERT ({', '.join(critical_stations)}): Oxygen value out of range! Alarm active."
     )
-    # Embedding the exact requested loud audio sample (QuickSounds.com)
-    st.markdown(
-        """
-        <audio autoplay loop>
-          <source src="https://www.quicksounds.com/uploads/tracks/1865913508_1928092284_ext.mp3" type="audio/mpeg">
-        </audio>
-    """,
-        unsafe_allow_html=True,
+    audio_url = (
+        "https://www.quicksounds.com/uploads/tracks/1865913508_1928092284_ext.mp3"
     )
+
+    # JS Code to bypass browser autoplay restrictions
+    sound_js = f"""
+    <script>
+    var audio = new Audio('{audio_url}');
+    audio.loop = true;
+    audio.play().catch(function(error) {{
+        console.log("Autoplay prevented. Waiting for click.");
+        document.addEventListener('click', function() {{
+            audio.play();
+        }}, {{ once: true }});
+    }});
+    </script>
+    <div style="padding: 10px; background-color: #7f1d1d; color: white; border-radius: 8px; text-align: center; margin-bottom: 10px;">
+        🔊 <b>Alarm Triggered!</b> If sound is blocked by browser, click anywhere on the page to start sound.
+    </div>
+    """
+    components.html(sound_js, height=60)
 
 # View Mode Selection
 st.markdown(
@@ -261,148 +274,64 @@ selected_view = st.selectbox(
     label_visibility="collapsed",
 )
 
-
-# Helper function to render card with individual Mute/Unmute button
-def render_station_card(pt):
-    s_name = pt["name"]
-    val = pt["val"]
-    min_l = pt.get("min_limit", 100.0)
-    max_l = pt.get("max_limit", 350.0)
-    last_t = pt.get(
-        "last_updated", datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
-    )
-
-    coil_html = ""
-    if s_name.upper() == "ROD" and (
-        pt.get("coil_prefix") or pt.get("coil_num")
-    ):
-        coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
-
-    is_critical = val > 0 and (val < min_l or val > max_l)
-
-    if val == 0.0:
-        status_label, val_class, badge_class, sub_desc = (
-            "NO DATA YET",
-            "card-val-green",
-            "badge-safe",
-            "Awaiting reading.",
+# Display Cards
+cols = st.columns(len(store["monitoring_points"]))
+for idx, pt in enumerate(store["monitoring_points"]):
+    with cols[idx]:
+        s_name = pt["name"]
+        val = pt["val"]
+        min_l = pt.get("min_limit", 100.0)
+        max_l = pt.get("max_limit", 350.0)
+        last_t = pt.get(
+            "last_updated", datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         )
-    elif is_critical:
-        status_label, val_class, badge_class, sub_desc = (
-            "CRITICAL ALERT",
-            "card-val-red",
-            "badge-critical",
-            "Out of safe range!",
-        )
-    else:
-        status_label, val_class, badge_class, sub_desc = (
-            "SAFE ZONE",
-            "card-val-green",
-            "badge-safe",
-            "Normal safe range.",
-        )
-        # Reset mute for this station if it becomes safe
-        st.session_state.muted_stations[s_name] = False
 
-    card_div = f'<div class="main-card" style="padding: 35px;"><div class="card-title" style="font-size: 30px;">{s_name}</div>{coil_html}<div class="{val_class}">{val:.2f} <span style="font-size:26px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}" style="font-size: 18px; padding: 10px 22px;">● {status_label}</span><div style="color: #94a3b8; font-size: 16px; margin-top: 12px;">{sub_desc}</div></div><div class="card-timestamp" style="font-size: 15px;">🕒 Last Updated: {last_t}</div></div>'
-    return card_div, is_critical
+        coil_html = ""
+        if s_name.upper() == "ROD" and (
+            pt.get("coil_prefix") or pt.get("coil_num")
+        ):
+            coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
 
+        # FIXED logic: Check value strictly against min and max
+        is_critical = val < min_l or val > max_l
 
-# Cards Display Layout
-if selected_view == "Show All Cards":
-    cols = st.columns(len(store["monitoring_points"]))
-    for idx, pt in enumerate(store["monitoring_points"]):
-        with cols[idx]:
-            s_name = pt["name"]
-            val = pt["val"]
-            min_l = pt.get("min_limit", 100.0)
-            max_l = pt.get("max_limit", 350.0)
-            last_t = pt.get(
-                "last_updated", datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+        if is_critical:
+            status_label, val_class, badge_class, sub_desc = (
+                "CRITICAL ALERT",
+                "card-val-red",
+                "badge-critical",
+                "Out of safe range!",
             )
+        else:
+            status_label, val_class, badge_class, sub_desc = (
+                "SAFE ZONE",
+                "card-val-green",
+                "badge-safe",
+                "Normal safe range.",
+            )
+            st.session_state.muted_stations[s_name] = False
 
-            coil_html = ""
-            if s_name.upper() == "ROD" and (
-                pt.get("coil_prefix") or pt.get("coil_num")
-            ):
-                coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
+        card_html = f'<div class="main-card"><div class="card-title">{s_name}</div>{coil_html}<div class="{val_class}" style="font-size: 52px;">{val:.2f} <span style="font-size:20px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}">● {status_label}</span><div style="color: #94a3b8; font-size: 12px; margin-top: 8px;">{sub_desc}</div></div><div class="card-timestamp">🕒 {last_t}</div></div>'
+        st.markdown(card_html, unsafe_allow_html=True)
 
-            is_critical = val > 0 and (val < min_l or val > max_l)
-
-            if val == 0.0:
-                status_label, val_class, badge_class, sub_desc = (
-                    "NO DATA YET",
-                    "card-val-green",
-                    "badge-safe",
-                    "Awaiting reading.",
-                )
-            elif is_critical:
-                status_label, val_class, badge_class, sub_desc = (
-                    "CRITICAL ALERT",
-                    "card-val-red",
-                    "badge-critical",
-                    "Out of safe range!",
-                )
-            else:
-                status_label, val_class, badge_class, sub_desc = (
-                    "SAFE ZONE",
-                    "card-val-green",
-                    "badge-safe",
-                    "Normal safe range.",
-                )
-                st.session_state.muted_stations[s_name] = False
-
-            card_html = f'<div class="main-card"><div class="card-title">{s_name}</div>{coil_html}<div class="{val_class}" style="font-size: 52px;">{val:.2f} <span style="font-size:20px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}">● {status_label}</span><div style="color: #94a3b8; font-size: 12px; margin-top: 8px;">{sub_desc}</div></div><div class="card-timestamp">🕒 {last_t}</div></div>'
-            st.markdown(card_html, unsafe_allow_html=True)
-
-            # Individual Mute/Unmute Button under each card if critical
-            if is_critical:
-                is_muted = st.session_state.muted_stations.get(s_name, False)
-                if not is_muted:
-                    if st.button(
-                        f"🔕 Mute Alarm ({s_name})",
-                        key=f"mute_{idx}",
-                        use_container_width=True,
-                    ):
-                        st.session_state.muted_stations[s_name] = True
-                        st.rerun()
-                else:
-                    if st.button(
-                        f"🔔 Unmute Alarm ({s_name})",
-                        key=f"unmute_{idx}",
-                        use_container_width=True,
-                    ):
-                        st.session_state.muted_stations[s_name] = False
-                        st.rerun()
-else:
-    focused_pt = next(
-        (p for p in store["monitoring_points"] if p["name"] == selected_view),
-        None,
-    )
-    if focused_pt:
-        s_name = focused_pt["name"]
-        card_rendered, is_crit = render_station_card(focused_pt)
-        st.markdown(card_rendered, unsafe_allow_html=True)
-        if is_crit:
+        if is_critical:
             is_muted = st.session_state.muted_stations.get(s_name, False)
-            col_m1, col_m2 = st.columns([2, 4])
-            with col_m1:
-                if not is_muted:
-                    if st.button(
-                        f"🔕 Mute Alarm ({s_name})",
-                        key="mute_focused",
-                        use_container_width=True,
-                    ):
-                        st.session_state.muted_stations[s_name] = True
-                        st.rerun()
-                else:
-                    if st.button(
-                        f"🔔 Unmute Alarm ({s_name})",
-                        key="unmute_focused",
-                        use_container_width=True,
-                    ):
-                        st.session_state.muted_stations[s_name] = False
-                        st.rerun()
+            if not is_muted:
+                if st.button(
+                    f"🔕 Mute Alarm ({s_name})",
+                    key=f"mute_{idx}",
+                    use_container_width=True,
+                ):
+                    st.session_state.muted_stations[s_name] = True
+                    st.rerun()
+            else:
+                if st.button(
+                    f"🔔 Unmute Alarm ({s_name})",
+                    key=f"unmute_{idx}",
+                    use_container_width=True,
+                ):
+                    st.session_state.muted_stations[s_name] = False
+                    st.rerun()
 
 st.markdown("---")
 st.markdown("### 📝 Live Data Entry & Operations Panel")
@@ -451,7 +380,6 @@ with tabs[0]:
             new_num = ""
 
     if st.button("Submit & Save Reading", type="primary"):
-        # Accurate real-time PKT timestamp (AM/PM 12-hour format)
         now_str = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         store["monitoring_points"][selected_edit_idx]["val"] = new_val
         store["monitoring_points"][selected_edit_idx][
@@ -460,7 +388,6 @@ with tabs[0]:
         store["monitoring_points"][selected_edit_idx]["coil_num"] = new_num
         store["monitoring_points"][selected_edit_idx]["last_updated"] = now_str
 
-        # Reset mute for this station on new reading update
         st.session_state.muted_stations[current_pt["name"]] = False
 
         new_log = {
@@ -475,25 +402,6 @@ with tabs[0]:
         }
         store["log_history"].append(new_log)
         save_store()
-
-        # Real-time Google Sheet API sync integration using gspread
-        sheet_link = store.get("google_sheet_url", "")
-        if "docs.google.com" in sheet_link:
-            try:
-                import gspread
-
-                # To connect your Google Sheet automatically:
-                # 1. Place your Google Cloud service account credentials file as 'credentials.json' in your app folder.
-                # 2. Share your Google Sheet with the service account email.
-                if os.path.exists("credentials.json"):
-                    gc = gspread.service_account(filename="credentials.json")
-                    sh = gc.open_by_url(sheet_link)
-                    worksheet = sh.get_worksheet(0)
-                    worksheet.append_row(
-                        [now_str, current_pt["name"], new_val, new_log["Coil"]]
-                    )
-            except Exception as e:
-                pass
 
         st.success(
             f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm at {now_str}!"
@@ -529,8 +437,8 @@ with tabs[2]:
     st.subheader("👥 User Management & Create New User")
     with st.form("create_user_form"):
         st.markdown("#### Add New System User")
-        new_username = st.text_input("New Username (e.g. operator1)")
-        new_name = st.text_input("Full Name (e.g. Ali Khan)")
+        new_username = st.text_input("New Username")
+        new_name = st.text_input("Full Name")
         new_password = st.text_input("Password", type="password")
         new_role = st.selectbox("Role", ["operator", "admin"])
 
@@ -551,43 +459,12 @@ with tabs[2]:
                         f"User '{new_username}' successfully created!"
                     )
                     st.rerun()
-            else:
-                st.warning("Please fill in all fields.")
-
-    st.markdown("---")
-    st.write("### Registered Users List:")
-    for username, details in store["user_db"].items():
-        st.markdown(
-            f"- **{username}**: {details['name']} (Role: **{details['role'].upper()}**)"
-        )
 
 with tabs[3]:
     st.subheader("📊 Log History & Google Sheets Access")
 
-    col_btn1, col_btn2 = st.columns([2, 4])
-    with col_btn1:
-        sheet_link = store.get("google_sheet_url", "")
-        if sheet_link and "your-sheet-id-here" not in sheet_link:
-            st.markdown(
-                f'<a href="{sheet_link}" target="_blank"><button style="background-color: #2ecc71; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px;">📂 Open Live Google Sheet</button></a>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.info(
-                "Configure your Google Sheet URL in Sidebar -> Admin Settings."
-            )
-
     if store["log_history"]:
-        st.markdown("### Recent Log Entries")
         df_logs = pd.DataFrame(store["log_history"])
         st.dataframe(df_logs, use_container_width=True)
-
-        csv_data = df_logs.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="📥 Download Logs as CSV (for Google Sheets import)",
-            data=csv_data,
-            file_name="ccr_oxygen_logs.csv",
-            mime="text/csv",
-        )
     else:
         st.info("No logs recorded yet.")
