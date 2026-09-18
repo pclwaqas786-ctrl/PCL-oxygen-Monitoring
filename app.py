@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-# Set Page Config
+# Page Configuration
 st.set_page_config(
     page_title="Pakistan Cable (CCR) - Oxygen & Coil Monitoring",
     page_icon="🏭",
@@ -18,7 +18,7 @@ DATA_FILE = "store_data.json"
 
 
 def get_pkt_time():
-    """Returns current accurate Pakistan Standard Time (UTC+5) without extra libraries"""
+    """Returns current accurate Pakistan Standard Time (UTC+5)"""
     pkt_zone = timezone(timedelta(hours=5))
     return datetime.now(pkt_zone).strftime("%Y-%m-%d %I:%M:%S %p")
 
@@ -117,27 +117,17 @@ if "duty_shift" not in st.session_state:
 if "muted_stations" not in st.session_state:
     st.session_state.muted_stations = {}
 
-# Custom CSS
+# Custom Styling
 st.markdown(
     """
 <style>
 .stApp { background-color: #0F172A; color: white; }
-.main-card {
-    background-color: #1e293b;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 12px;
-    padding: 18px;
-    margin-bottom: 15px;
-    color: white;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-}
-.card-title { font-weight: 700; font-size: 22px; margin-bottom: 6px; color: #ffffff; text-align: center; }
-.card-coil { font-weight: 600; font-size: 15px; margin-bottom: 10px; color: #38bdf8; text-align: center; }
-.card-val-green { font-size: 42px; font-weight: 900; color: #2ecc71; text-align: center; margin: 10px 0; }
-.card-val-red { font-size: 42px; font-weight: 900; color: #e74c3c; text-align: center; margin: 10px 0; }
-.badge-safe { background-color: rgba(46, 204, 113, 0.2); color: #2ecc71; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
-.badge-critical { background-color: rgba(231, 76, 60, 0.2); color: #e74c3c; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
-.card-timestamp { color: #94a3b8; font-size: 12px; text-align: center; margin-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px; }
+.card-val-green { font-size: 36px; font-weight: 900; color: #2ecc71; text-align: center; margin: 5px 0; }
+.card-val-red { font-size: 36px; font-weight: 900; color: #e74c3c; text-align: center; margin: 5px 0; }
+.badge-safe { background-color: rgba(46, 204, 113, 0.2); color: #2ecc71; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
+.badge-critical { background-color: rgba(231, 76, 60, 0.2); color: #e74c3c; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
+.card-coil { font-weight: 600; font-size: 15px; color: #38bdf8; text-align: center; margin-bottom: 5px; }
+.card-timestamp { color: #94a3b8; font-size: 12px; text-align: center; margin-top: 8px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -218,10 +208,10 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
 head_col1, head_col2 = st.columns([1.2, 5.8])
 with head_col1:
     if store.get("logo_image"):
-        st.image(store["logo_image"], width=100)
+        st.image(store["logo_image"], width=80)
     else:
         st.markdown(
-            """<div style="background: #1e293b; width: 80px; height: 80px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #38bdf8;"><span style="color: #2ecc71; font-size: 20px; font-weight: bold;">PCL</span></div>""",
+            """<div style="background: #1e293b; width: 70px; height: 70px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #38bdf8;"><span style="color: #2ecc71; font-size: 18px; font-weight: bold;">PCL</span></div>""",
             unsafe_allow_html=True,
         )
 
@@ -230,13 +220,13 @@ with head_col2:
         f"<h2 style='margin:0;'>{store['app_title']}</h2>", unsafe_allow_html=True
     )
     st.markdown(
-        f"<p style='color: #cbd5e1; font-size: 14px;'><em>{store['app_subtitle']}</em></p>",
+        f"<p style='color: #cbd5e1; font-size: 13px;'><em>{store['app_subtitle']}</em></p>",
         unsafe_allow_html=True,
     )
 
 st.markdown("---")
 
-# Strict Range Checking
+# Alarm Check Logic
 play_audio = False
 critical_stations = []
 
@@ -251,10 +241,10 @@ for pt in store["monitoring_points"]:
         if not st.session_state.muted_stations.get(s_name, False):
             play_audio = True
 
-# Loud Industrial Synth Beep JavaScript Alarm
+# Continuous WebAudio JavaScript Synth Beep (No MP3/Audio Elements on Screen)
 if play_audio:
     st.error(
-        f"🚨 CRITICAL ALERT ({', '.join(critical_stations)}): Values violate Min/Max limits!"
+        f"🚨 CRITICAL ALERT ({', '.join(critical_stations)}): Value limits violated!"
     )
     alarm_script = """
     <script>
@@ -268,68 +258,77 @@ if play_audio:
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + 0.5);
+        osc.stop(ctx.currentTime + 0.4);
     }
     var intervalId = setInterval(playBeep, 800);
     </script>
     """
     st.components.v1.html(alarm_script, height=0, width=0)
 
-# Station Cards Layout
-cols = st.columns(len(store["monitoring_points"]))
+st.markdown("### 📊 Monitoring Stations")
+
+# Expanding Cards Section
 for idx, pt in enumerate(store["monitoring_points"]):
-    with cols[idx]:
-        s_name = pt["name"]
-        val = pt["val"]
-        min_l = pt.get("min_limit", 100.0)
-        max_l = pt.get("max_limit", 350.0)
-        last_t = pt.get("last_updated", get_pkt_time())
+    s_name = pt["name"]
+    val = pt["val"]
+    min_l = pt.get("min_limit", 100.0)
+    max_l = pt.get("max_limit", 350.0)
+    last_t = pt.get("last_updated", get_pkt_time())
+    is_critical = val < min_l or val > max_l
 
-        coil_html = ""
-        if s_name.upper() == "ROD" and (
-            pt.get("coil_prefix") or pt.get("coil_num")
-        ):
-            coil_html = f'<div class="card-coil">📦 Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
+    icon = "🚨" if is_critical else "🟢"
+    expander_title = (
+        f"{icon} {s_name} — {val:.2f} PPM ({'CRITICAL' if is_critical else 'SAFE'})"
+    )
 
-        is_critical = val < min_l or val > max_l
+    with st.expander(expander_title, expanded=True):
+        col_info, col_btn = st.columns([3, 1])
 
-        if is_critical:
-            status_label, val_class, badge_class, sub_desc = (
-                "CRITICAL ALERT",
-                "card-val-red",
-                "badge-critical",
-                f"Limit: {min_l} - {max_l}",
+        with col_info:
+            if s_name.upper() == "ROD" and (
+                pt.get("coil_prefix") or pt.get("coil_num")
+            ):
+                st.markdown(
+                    f'<div class="card-coil">📦 Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>',
+                    unsafe_allow_html=True,
+                )
+
+            val_class = "card-val-red" if is_critical else "card-val-green"
+            badge_class = "badge-critical" if is_critical else "badge-safe"
+            status_text = "CRITICAL ALERT" if is_critical else "SAFE ZONE"
+
+            st.markdown(
+                f'<div class="{val_class}">{val:.2f} <span style="font-size:16px;">ppm</span></div>',
+                unsafe_allow_html=True,
             )
-        else:
-            status_label, val_class, badge_class, sub_desc = (
-                "SAFE ZONE",
-                "card-val-green",
-                "badge-safe",
-                f"Range: {min_l} - {max_l}",
+            st.markdown(
+                f'<div style="text-align: center;"><span class="{badge_class}">● {status_text}</span><div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">Limit: {min_l} - {max_l}</div></div>',
+                unsafe_allow_html=True,
             )
-            st.session_state.muted_stations[s_name] = False
+            st.markdown(
+                f'<div class="card-timestamp">🕒 Last Updated: {last_t}</div>',
+                unsafe_allow_html=True,
+            )
 
-        card_html = f'<div class="main-card"><div class="card-title">{s_name}</div>{coil_html}<div class="{val_class}">{val:.2f} <span style="font-size:16px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}">● {status_label}</span><div style="color: #94a3b8; font-size: 11px; margin-top: 6px;">{sub_desc}</div></div><div class="card-timestamp">🕒 {last_t}</div></div>'
-        st.markdown(card_html, unsafe_allow_html=True)
-
-        if is_critical:
-            is_muted = st.session_state.muted_stations.get(s_name, False)
-            if not is_muted:
-                if st.button(
-                    f"🔕 Mute ({s_name})",
-                    key=f"mute_{idx}",
-                    use_container_width=True,
-                ):
-                    st.session_state.muted_stations[s_name] = True
-                    st.rerun()
-            else:
-                if st.button(
-                    f"🔔 Unmute ({s_name})",
-                    key=f"unmute_{idx}",
-                    use_container_width=True,
-                ):
-                    st.session_state.muted_stations[s_name] = False
-                    st.rerun()
+        with col_btn:
+            if is_critical:
+                is_muted = st.session_state.muted_stations.get(s_name, False)
+                if not is_muted:
+                    if st.button(
+                        f"🔕 Mute Alarm",
+                        key=f"exp_mute_{idx}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.muted_stations[s_name] = True
+                        st.rerun()
+                else:
+                    if st.button(
+                        f"🔔 Unmute Alarm",
+                        key=f"exp_unmute_{idx}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.muted_stations[s_name] = False
+                        st.rerun()
 
 st.markdown("---")
 st.markdown("### 📝 Live Data Entry & Operations Panel")
