@@ -319,7 +319,6 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
     st.success("Background wallpaper updated successfully!")
     st.rerun()
 
-# Header Section with Clean Logo Handling
 head_col1, head_col2 = st.columns([1.2, 5.8])
 with head_col1:
   if store.get("logo_image"):
@@ -390,7 +389,6 @@ if selected_view == "Show All Cards":
         "last_updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     )
 
-    # Coil number ONLY for ROD card, completely removed for others
     coil_html = ""
     if pt["name"].upper() == "ROD":
       prefix = pt.get("coil_prefix", "CR")
@@ -485,7 +483,6 @@ else:
       badge_class = "badge-safe-large"
       sub_desc = "Normal safe range."
 
-    # CORRECTED MARKDOWN RENDERING FOR FOCUSED VIEW TO AVOID HTML TAG DISPLAY
     st.markdown(
         f"""
         <div class="main-card-large">
@@ -502,7 +499,6 @@ else:
         unsafe_allow_html=True,
     )
 
-# Check all points for alerts
 for pt in store["monitoring_points"]:
   val = pt["val"]
   min_l = pt.get("min_limit", 100.0)
@@ -510,7 +506,6 @@ for pt in store["monitoring_points"]:
   if val > 0 and (val < min_l or val > max_l):
     any_high_alert = True
 
-# BUILT-IN LOUD ALARM SOUND (EMBEDDED SIREN)
 if any_high_alert:
   alert_msg = (
       " | ".join(alert_details) if alert_details else "Critical limit exceeded!"
@@ -572,7 +567,7 @@ if any_high_alert:
             }}
             playSirenTone();
             sirenInterval = setInterval(playSirenTone, 400);
-        } catch(err) {{}}
+        }} catch(err) {{}}
     }}
     </script>
     """
@@ -592,7 +587,6 @@ tabs = st.tabs([
 with tabs[0]:
   st.subheader("Update Live Sensor Reading")
   if len(store["monitoring_points"]) > 0:
-    # INDIVIDUAL POINT SELECTION WITH INDEPENDENT VALUES
     selected_edit_idx = st.selectbox(
         "Select Monitoring Point",
         options=range(len(store["monitoring_points"])),
@@ -631,7 +625,6 @@ with tabs[0]:
     if st.button("Submit & Save Reading", type="primary"):
       now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-      # Update specific selected point without affecting others
       if current_pt["name"].upper() == "ROD":
         st.session_state.store["monitoring_points"][selected_edit_idx][
             "coil_prefix"
