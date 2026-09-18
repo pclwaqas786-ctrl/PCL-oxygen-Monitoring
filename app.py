@@ -89,7 +89,6 @@ default_store = {
     ],
 }
 
-
 # Robust Session State Initialization
 if "store" not in st.session_state:
   if os.path.exists(DATA_FILE):
@@ -156,10 +155,26 @@ st.markdown(
     color: white;
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
+.main-card-large {
+    background-color: rgba(38, 38, 38, 0.95);
+    border: 2px solid #38bdf8;
+    border-radius: 16px;
+    padding: 35px;
+    margin-bottom: 20px;
+    color: white;
+    box-shadow: 0 8px 25px rgba(56, 189, 248, 0.3);
+}
 .card-title {
     font-weight: 700;
     font-size: 18px;
     margin-bottom: 4px;
+    color: #ffffff;
+    text-align: center;
+}
+.card-title-large {
+    font-weight: 800;
+    font-size: 26px;
+    margin-bottom: 8px;
     color: #ffffff;
     text-align: center;
 }
@@ -170,12 +185,26 @@ st.markdown(
     color: #38bdf8;
     text-align: center;
 }
+.card-coil-large {
+    font-weight: 600;
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #38bdf8;
+    text-align: center;
+}
 .card-val-green {
     font-size: 40px;
     font-weight: 800;
     color: #2ecc71;
     text-align: center;
     margin: 10px 0;
+}
+.card-val-green-large {
+    font-size: 75px;
+    font-weight: 900;
+    color: #2ecc71;
+    text-align: center;
+    margin: 15px 0;
 }
 .card-val-orange {
     font-size: 40px;
@@ -184,12 +213,26 @@ st.markdown(
     text-align: center;
     margin: 10px 0;
 }
+.card-val-orange-large {
+    font-size: 75px;
+    font-weight: 900;
+    color: #f39c12;
+    text-align: center;
+    margin: 15px 0;
+}
 .card-val-red {
     font-size: 40px;
     font-weight: 800;
     color: #e74c3c;
     text-align: center;
     margin: 10px 0;
+}
+.card-val-red-large {
+    font-size: 75px;
+    font-weight: 900;
+    color: #e74c3c;
+    text-align: center;
+    margin: 15px 0;
 }
 .badge-safe {
     background-color: rgba(46, 204, 113, 0.2);
@@ -198,6 +241,15 @@ st.markdown(
     border-radius: 20px;
     font-weight: bold;
     font-size: 13px;
+    display: inline-block;
+}
+.badge-safe-large {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 16px;
     display: inline-block;
 }
 .badge-caution {
@@ -209,6 +261,15 @@ st.markdown(
     font-size: 13px;
     display: inline-block;
 }
+.badge-caution-large {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 16px;
+    display: inline-block;
+}
 .badge-critical {
     background-color: rgba(231, 76, 60, 0.2);
     color: #e74c3c;
@@ -216,6 +277,15 @@ st.markdown(
     border-radius: 20px;
     font-weight: bold;
     font-size: 13px;
+    display: inline-block;
+}
+.badge-critical-large {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 16px;
     display: inline-block;
 }
 </style>
@@ -260,7 +330,6 @@ if st.sidebar.button("🚪 Logout", type="secondary"):
   st.session_state.username = ""
   st.rerun()
 
-# Sirf 2 shifts: Shift A aur Shift B
 st.session_state.duty_shift = st.sidebar.selectbox(
     "Select Duty Shift", ["Shift A", "Shift B"], index=0
 )
@@ -373,78 +442,179 @@ with head_col2:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# CARDS DISPLAY SECTION & ALARM LOGIC
+# VIEW MODE SELECTOR (CLICK/SELECT TO ZOOM OR VIEW ALL)
 # ---------------------------------------------------------
-if len(store["monitoring_points"]) > 0:
-  cols = st.columns(min(len(store["monitoring_points"]), 3))
-else:
-  cols = [st.empty()]
+st.markdown(
+    "<h4 style='color: #38bdf8; margin-bottom: 5px;'>🔍 Select View"
+    " Mode</h4>",
+    unsafe_allow_html=True,
+)
+view_options = ["Show All Cards"] + [p["name"] for p in store["monitoring_points"]]
+selected_view = st.selectbox(
+    "Choose a specific station to view in large/focused size, or select 'Show All Cards' to view all three:",
+    options=view_options,
+    label_visibility="collapsed",
+)
 
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# CARDS DISPLAY SECTION (ALL OR FOCUSED LARGE VIEW)
+# ---------------------------------------------------------
 any_high_alert = False
 alert_details = []
 
-for idx, pt in enumerate(store["monitoring_points"]):
-  col = cols[idx % len(cols)]
-  val = pt["val"]
-  prefix = pt.get("coil_prefix", "")
-  c_num = pt.get("coil_num", "")
-
-  if prefix or c_num:
-    full_coil_display = f"{prefix}-{c_num}".strip()
-    if not prefix:
-      full_coil_display = c_num
+if selected_view == "Show All Cards":
+  if len(store["monitoring_points"]) > 0:
+    cols = st.columns(min(len(store["monitoring_points"]), 3))
   else:
-    full_coil_display = "N/A"
+    cols = [st.empty()]
 
-  if val == 0.0:
-    status_label = "NO DATA YET"
-    val_class = "card-val-green"
-    badge_class = "badge-safe"
-    sub_desc = "Awaiting first reading input."
-  elif val < pt["norm_min"]:
-    status_label = "CRITICAL ALERT (Red)"
-    val_class = "card-val-red"
-    badge_class = "badge-critical"
-    sub_desc = "Oxygen level critically low!"
-    any_high_alert = True
-    alert_details.append(
-        f"{pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
-    )
-  elif val > pt["caution_max"]:
-    status_label = "CRITICAL ALERT (Red)"
-    val_class = "card-val-red"
-    badge_class = "badge-critical"
-    sub_desc = "Oxygen level out of safe limits!"
-    any_high_alert = True
-    alert_details.append(
-        f"{pt['name']} ({full_coil_display}): High Level ({val} ppm)"
-    )
-  elif val > pt["norm_max"]:
-    status_label = "CAUTION ZONE (Orange)"
-    val_class = "card-val-orange"
-    badge_class = "badge-caution"
-    sub_desc = "Elevated range, monitor closely."
-  else:
-    status_label = "SAFE ZONE (Green)"
-    val_class = "card-val-green"
-    badge_class = "badge-safe"
-    sub_desc = "Normal safe range."
+  for idx, pt in enumerate(store["monitoring_points"]):
+    col = cols[idx % len(cols)]
+    val = pt["val"]
+    prefix = pt.get("coil_prefix", "")
+    c_num = pt.get("coil_num", "")
 
-  with col:
+    if prefix or c_num:
+      full_coil_display = f"{prefix}-{c_num}".strip()
+      if not prefix:
+        full_coil_display = c_num
+    else:
+      full_coil_display = "N/A"
+
+    if val == 0.0:
+      status_label = "NO DATA YET"
+      val_class = "card-val-green"
+      badge_class = "badge-safe"
+      sub_desc = "Awaiting first reading input."
+    elif val < pt["norm_min"]:
+      status_label = "CRITICAL ALERT (Red)"
+      val_class = "card-val-red"
+      badge_class = "badge-critical"
+      sub_desc = "Oxygen level critically low!"
+      any_high_alert = True
+      alert_details.append(
+          f"{pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
+      )
+    elif val > pt["caution_max"]:
+      status_label = "CRITICAL ALERT (Red)"
+      val_class = "card-val-red"
+      badge_class = "badge-critical"
+      sub_desc = "Oxygen level out of safe limits!"
+      any_high_alert = True
+      alert_details.append(
+          f"{pt['name']} ({full_coil_display}): High Level ({val} ppm)"
+      )
+    elif val > pt["norm_max"]:
+      status_label = "CAUTION ZONE (Orange)"
+      val_class = "card-val-orange"
+      badge_class = "badge-caution"
+      sub_desc = "Elevated range, monitor closely."
+    else:
+      status_label = "SAFE ZONE (Green)"
+      val_class = "card-val-green"
+      badge_class = "badge-safe"
+      sub_desc = "Normal safe range."
+
+    with col:
+      st.markdown(
+          f"""
+            <div class="main-card">
+                <div class="card-title">{pt['name']}</div>
+                <div class="card-coil">📦 Item/Coil: {full_coil_display}</div>
+                <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <span class="{badge_class}">● {status_label}</span>
+                    <div style="color: #94a3b8; font-size: 12px; margin-top: 6px;">{sub_desc}</div>
+                </div>
+            </div>
+            """,
+          unsafe_allow_html=True,
+      )
+else:
+  # FOCUSED LARGE VIEW FOR SELECTED ITEM
+  focused_pt = next(
+      (p for p in store["monitoring_points"] if p["name"] == selected_view), None
+  )
+  if focused_pt:
+    val = focused_pt["val"]
+    prefix = focused_pt.get("coil_prefix", "")
+    c_num = focused_pt.get("coil_num", "")
+
+    if prefix or c_num:
+      full_coil_display = f"{prefix}-{c_num}".strip()
+      if not prefix:
+        full_coil_display = c_num
+    else:
+      full_coil_display = "N/A"
+
+    if val == 0.0:
+      status_label = "NO DATA YET"
+      val_class = "card-val-green-large"
+      badge_class = "badge-safe-large"
+      sub_desc = "Awaiting first reading input."
+    elif val < focused_pt["norm_min"]:
+      status_label = "CRITICAL ALERT (Red)"
+      val_class = "card-val-red-large"
+      badge_class = "badge-critical-large"
+      sub_desc = "Oxygen level critically low!"
+      any_high_alert = True
+      alert_details.append(
+          f"{focused_pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
+      )
+    elif val > focused_pt["caution_max"]:
+      status_label = "CRITICAL ALERT (Red)"
+      val_class = "card-val-red-large"
+      badge_class = "badge-critical-large"
+      sub_desc = "Oxygen level out of safe limits!"
+      any_high_alert = True
+      alert_details.append(
+          f"{focused_pt['name']} ({full_coil_display}): High Level ({val} ppm)"
+      )
+    elif val > focused_pt["norm_max"]:
+      status_label = "CAUTION ZONE (Orange)"
+      val_class = "card-val-orange-large"
+      badge_class = "badge-caution-large"
+      sub_desc = "Elevated range, monitor closely."
+    else:
+      status_label = "SAFE ZONE (Green)"
+      val_class = "card-val-green-large"
+      badge_class = "badge-safe-large"
+      sub_desc = "Normal safe range."
+
     st.markdown(
         f"""
-        <div class="main-card">
-            <div class="card-title">{pt['name']}</div>
-            <div class="card-coil">📦 Item/Coil: {full_coil_display}</div>
-            <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
-            <div style="text-align: center; margin-top: 10px;">
+        <div class="main-card-large">
+            <div class="card-title-large">🔍 Focused View: {focused_pt['name']}</div>
+            <div class="card-coil-large">📦 Item/Coil: {full_coil_display}</div>
+            <div class="{val_class}">{val:.2f} <span style="font-size:30px;">ppm</span></div>
+            <div style="text-align: center; margin-top: 20px;">
                 <span class="{badge_class}">● {status_label}</span>
-                <div style="color: #94a3b8; font-size: 12px; margin-top: 6px;">{sub_desc}</div>
+                <div style="color: #cbd5e1; font-size: 16px; margin-top: 10px;">{sub_desc}</div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+# Check for alerts across all points for the alarm banner
+for pt in store["monitoring_points"]:
+  val = pt["val"]
+  prefix = pt.get("coil_prefix", "")
+  c_num = pt.get("coil_num", "")
+  full_coil_display = f"{prefix}-{c_num}".strip() if (prefix or c_num) else "N/A"
+  if val > 0 and (val < pt["norm_min"] or val > pt["caution_max"]):
+    any_high_alert = True
+    if (
+        f"{pt['name']} ({full_coil_display}): High Level ({val} ppm)"
+        not in alert_details
+        and f"{pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
+        not in alert_details
+    ):
+      alert_details.append(
+          f"{pt['name']} ({full_coil_display}): Level ({val} ppm)"
+      )
 
 # ---------------------------------------------------------
 # CRITICAL ALARM BANNER
