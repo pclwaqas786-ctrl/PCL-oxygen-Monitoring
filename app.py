@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import textwrap
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -101,21 +102,21 @@ if "duty_shift" not in st.session_state:
   st.session_state.duty_shift = "Shift A"
 
 bg_css = """
-    <style>
-    .stApp {
-        background-color: #0F172A;
-    }
-    </style>
-    """
+<style>
+.stApp {
+    background-color: #0F172A;
+}
+</style>
+"""
 if store.get("bg_image"):
   bg_css = f"""
-    <style>
-    .stApp {{
-        background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{store['bg_image']}") no-repeat center center fixed;
-        background-size: cover;
-    }}
-    </style>
-    """
+<style>
+.stApp {{
+    background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{store['bg_image']}") no-repeat center center fixed;
+    background-size: cover;
+}}
+</style>
+"""
 
 st.markdown(bg_css, unsafe_allow_html=True)
 st.markdown(
@@ -334,26 +335,22 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
 head_col1, head_col2 = st.columns([1.2, 5.8])
 with head_col1:
   if store.get("logo_image"):
-    st.markdown(
-        f"""
+    logo_code = textwrap.dedent(f"""
         <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
             <img src="{store['logo_image']}" width="120" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """)
+    st.markdown(logo_code, unsafe_allow_html=True)
   else:
-    st.markdown(
-        """
+    logo_code = textwrap.dedent("""
         <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 130px; height: 130px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
             <div style="width: 50px; height: 50px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
                 <span style="color: #2ecc71; font-size: 26px; font-weight: bold;">✓</span>
             </div>
             <span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1;">PAKISTAN CABLES</span>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """)
+    st.markdown(logo_code, unsafe_allow_html=True)
 
 with head_col2:
   st.markdown(
@@ -435,22 +432,20 @@ if selected_view == "Show All Cards":
       badge_class = "badge-safe"
       sub_desc = "Normal safe range."
 
-    with col:
-      st.markdown(
-          f"""
-            <div class="main-card">
-                <div class="card-title">{pt['name']}</div>
-                {coil_html}
-                <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
-                <div style="text-align: center; margin-top: 10px;">
-                    <span class="{badge_class}">● {status_label}</span>
-                    <div class="card-sub-desc">{sub_desc}</div>
-                </div>
-                <div class="card-timestamp">🕒 Recorded At: {last_t}</div>
+    card_code = textwrap.dedent(f"""
+        <div class="main-card">
+            <div class="card-title">{pt['name']}</div>
+            {coil_html}
+            <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
+            <div style="text-align: center; margin-top: 10px;">
+                <span class="{badge_class}">● {status_label}</span>
+                <div class="card-sub-desc">{sub_desc}</div>
             </div>
-            """,
-          unsafe_allow_html=True,
-      )
+            <div class="card-timestamp">🕒 Recorded At: {last_t}</div>
+        </div>
+        """)
+    with col:
+      st.markdown(card_code, unsafe_allow_html=True)
 else:
   focused_pt = next(
       (p for p in store["monitoring_points"] if p["name"] == selected_view), None
@@ -497,8 +492,7 @@ else:
       badge_class = "badge-safe-large"
       sub_desc = "Normal safe range."
 
-    st.markdown(
-        f"""
+    focused_card_code = textwrap.dedent(f"""
         <div class="main-card-large">
             <div class="card-title-large">🔍 Focused View: {focused_pt['name']}</div>
             {coil_html_large}
@@ -509,9 +503,8 @@ else:
             </div>
             <div class="card-timestamp" style="font-size: 14px; margin-top: 20px;">🕒 Recorded At: {last_t}</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """)
+    st.markdown(focused_card_code, unsafe_allow_html=True)
 
 for pt in store["monitoring_points"]:
   val = pt["val"]
