@@ -123,7 +123,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Sidebar Login & Controls
+# Sidebar Login & Controls (Vault & User Info Restored Properly)
 st.sidebar.markdown("### 🔐 User Login & Controls")
 if not st.session_state.logged_in:
     st.sidebar.warning("Please log in to continue.")
@@ -214,6 +214,34 @@ with head_col2:
 
 st.markdown("---")
 
+# Check if any station is out of range to trigger Voice/Audio Alert
+has_critical_alert = False
+for pt in store["monitoring_points"]:
+    val = pt["val"]
+    min_l = pt.get("min_limit", 100.0)
+    max_l = pt.get("max_limit", 350.0)
+    if val > 0 and (val < min_l or val > max_l):
+        has_critical_alert = True
+        break
+
+# Audio / Voice Alarm HTML/JS injection if critical alert is active
+if has_critical_alert:
+    st.markdown(
+        """
+        <audio autoplay loop>
+          <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+        </audio>
+        <script>
+            // Browser speech alert backup
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance('Critical alert! Oxygen value out of safe range!');
+                window.speechSynthesis.speak(utterance);
+            }
+        </script>
+    """,
+        unsafe_allow_html=True,
+    )
+
 # View Mode Selection
 st.markdown(
     "<h4 style='color: #38bdf8;'>🔍 Select View Mode</h4>",
@@ -269,7 +297,7 @@ def render_station_card(pt):
     return f'<div class="main-card" style="padding: 30px;"><div class="card-title" style="font-size: 26px;">{pt["name"]}</div>{coil_html}<div class="{val_class}" style="font-size: 55px;">{val:.2f} <span style="font-size:22px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}" style="font-size: 16px; padding: 8px 18px;">● {status_label}</span><div style="color: #94a3b8; font-size: 14px; margin-top: 10px;">{sub_desc}</div></div><div class="card-timestamp" style="font-size: 14px;">🕒 Last Updated: {last_t}</div></div>'
 
 
-# Cards Display Layout (Show All vs Individual Expanded Card)
+# Cards Display Layout
 if selected_view == "Show All Cards":
     cols = st.columns(len(store["monitoring_points"]))
     for idx, pt in enumerate(store["monitoring_points"]):
@@ -317,7 +345,6 @@ else:
         None,
     )
     if focused_pt:
-        # Ab individual view mein bhi full expanded card dikھے گا
         st.markdown(render_station_card(focused_pt), unsafe_allow_html=True)
 
 st.markdown("---")
@@ -367,7 +394,7 @@ with tabs[0]:
             new_num = ""
 
     if st.button("Submit & Save Reading", type="primary"):
-        # Real time 12-hour format with AM/PM
+        # Real-time local time synchronized properly (AM/PM 12-hour format)
         now_str = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         store["monitoring_points"][selected_edit_idx]["val"] = new_val
         store["monitoring_points"][selected_edit_idx][
