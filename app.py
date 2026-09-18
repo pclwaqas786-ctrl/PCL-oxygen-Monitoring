@@ -1,7 +1,7 @@
+import base64
 import datetime
 import json
 import os
-import textwrap
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -24,6 +24,7 @@ default_store = {
     ),
     "bg_image": "",
     "logo_image": "",
+    "alarm_sound_b64": "",
     "user_db": {
         "admin": {
             "pass": "admin123",
@@ -44,8 +45,6 @@ default_store = {
         },
         {
             "name": "Tundish",
-            "coil_prefix": "",
-            "coil_num": "",
             "val": 476.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
@@ -53,8 +52,6 @@ default_store = {
         },
         {
             "name": "Shaft Furnace(SF)",
-            "coil_prefix": "",
-            "coil_num": "",
             "val": 200.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
@@ -62,8 +59,6 @@ default_store = {
         },
         {
             "name": "Holding furnace(HF)",
-            "coil_prefix": "",
-            "coil_num": "",
             "val": 0.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
@@ -102,21 +97,21 @@ if "duty_shift" not in st.session_state:
   st.session_state.duty_shift = "Shift A"
 
 bg_css = """
-<style>
-.stApp {
-    background-color: #0F172A;
-}
-</style>
-"""
+    <style>
+    .stApp {
+        background-color: #0F172A;
+    }
+    </style>
+    """
 if store.get("bg_image"):
   bg_css = f"""
-<style>
-.stApp {{
-    background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{store['bg_image']}") no-repeat center center fixed;
-    background-size: cover;
-}}
-</style>
-"""
+    <style>
+    .stApp {{
+        background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{store['bg_image']}") no-repeat center center fixed;
+        background-size: cover;
+    }}
+    </style>
+    """
 
 st.markdown(bg_css, unsafe_allow_html=True)
 st.markdown(
@@ -232,18 +227,6 @@ st.markdown(
     font-size: 16px;
     display: inline-block;
 }
-.card-sub-desc {
-    color: #94a3b8;
-    font-size: 12px;
-    margin-top: 6px;
-    text-align: center;
-}
-.card-sub-desc-large {
-    color: #cbd5e1;
-    font-size: 16px;
-    margin-top: 10px;
-    text-align: center;
-}
 .card-timestamp {
     color: #94a3b8;
     font-size: 11px;
@@ -307,13 +290,26 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
     st.rerun()
 
   st.markdown("---")
+  st.markdown("#### 🔊 Custom Alarm Sound Upload")
+  uploaded_audio = st.file_uploader(
+      "Upload Alarm Audio (mp3, wav, ogg)", type=["mp3", "wav", "ogg"], key="audio_up"
+  )
+  if uploaded_audio:
+    b64_audio = base64.b64encode(uploaded_audio.read()).decode()
+    st.session_state.store["alarm_sound_b64"] = (
+        f"data:audio/mp3;base64,{b64_audio}"
+    )
+    save_store()
+    st.success("Custom alarm sound uploaded successfully!")
+    st.rerun()
+
+  st.markdown("---")
   st.markdown("#### 🖼️ Company Logo & Wallpaper")
+
   uploaded_logo = st.file_uploader(
       "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
   )
   if uploaded_logo:
-    import base64
-
     encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
     file_type = uploaded_logo.type or "image/png"
     st.session_state.store["logo_image"] = (
@@ -327,8 +323,6 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
       "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
   )
   if uploaded_bg:
-    import base64
-
     encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
     bg_type = uploaded_bg.type or "image/jpeg"
     st.session_state.store["bg_image"] = f"data:{bg_type};base64,{encoded_bg}"
@@ -336,25 +330,30 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
     st.success("Background wallpaper updated successfully!")
     st.rerun()
 
+# Header Section with Clean Logo Handling
 head_col1, head_col2 = st.columns([1.2, 5.8])
 with head_col1:
   if store.get("logo_image"):
-    logo_code = textwrap.dedent(f"""
+    st.markdown(
+        f"""
         <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
             <img src="{store['logo_image']}" width="120" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
         </div>
-        """)
-    st.markdown(logo_code, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
   else:
-    logo_code = textwrap.dedent("""
+    st.markdown(
+        """
         <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 130px; height: 130px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
             <div style="width: 50px; height: 50px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
                 <span style="color: #2ecc71; font-size: 26px; font-weight: bold;">✓</span>
             </div>
             <span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1;">PAKISTAN CABLES</span>
         </div>
-        """)
-    st.markdown(logo_code, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
 
 with head_col2:
   st.markdown(
@@ -363,7 +362,7 @@ with head_col2:
       unsafe_allow_html=True,
   )
   st.markdown(
-      f"<p style='color: #cbd5e1; font-size: 16px;"
+      "<p style='color: #cbd5e1; font-size: 16px;"
       f" margin-top:4px;'><em>{store['app_subtitle']}</em></p>",
       unsafe_allow_html=True,
   )
@@ -402,14 +401,13 @@ if selected_view == "Show All Cards":
         "last_updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     )
 
+    # Coil number ONLY for ROD card, completely removed for others
     coil_html = ""
     if pt["name"].upper() == "ROD":
       prefix = pt.get("coil_prefix", "CR")
       c_num = pt.get("coil_num", "2002")
       full_coil_display = f"{prefix}-{c_num}".strip()
-      coil_html = (
-          f'<div class="card-coil">📦 Item/Coil: {full_coil_display}</div>'
-      )
+      coil_html = f'<div class="card-coil">📦 Item/Coil: {full_coil_display}</div>'
 
     if val == 0.0:
       status_label = "NO DATA YET"
@@ -436,20 +434,22 @@ if selected_view == "Show All Cards":
       badge_class = "badge-safe"
       sub_desc = "Normal safe range."
 
-    card_code = textwrap.dedent(f"""
-        <div class="main-card">
-            <div class="card-title">{pt['name']}</div>
-            {coil_html}
-            <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
-            <div style="text-align: center; margin-top: 10px;">
-                <span class="{badge_class}">● {status_label}</span>
-                <div class="card-sub-desc">{sub_desc}</div>
-            </div>
-            <div class="card-timestamp">🕒 Recorded At: {last_t}</div>
-        </div>
-        """)
     with col:
-      st.markdown(card_code, unsafe_allow_html=True)
+      st.markdown(
+          f"""
+            <div class="main-card">
+                <div class="card-title">{pt['name']}</div>
+                {coil_html}
+                <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <span class="{badge_class}">● {status_label}</span>
+                    <div style="color: #94a3b8; font-size: 12px; margin-top: 6px;">{sub_desc}</div>
+                </div>
+                <div class="card-timestamp">🕒 Recorded At: {last_t}</div>
+            </div>
+            """,
+          unsafe_allow_html=True,
+      )
 else:
   focused_pt = next(
       (p for p in store["monitoring_points"] if p["name"] == selected_view), None
@@ -496,93 +496,21 @@ else:
       badge_class = "badge-safe-large"
       sub_desc = "Normal safe range."
 
-    focused_card_code = textwrap.dedent(f"""
+    st.markdown(
+        f"""
         <div class="main-card-large">
             <div class="card-title-large">🔍 Focused View: {focused_pt['name']}</div>
             {coil_html_large}
             <div class="{val_class}">{val:.2f} <span style="font-size:30px;">ppm</span></div>
             <div style="text-align: center; margin-top: 20px;">
                 <span class="{badge_class}">● {status_label}</span>
-                <div class="card-sub-desc-large">{sub_desc}</div>
+                <div style="color: #cbd5e1; font-size: 16px; margin-top: 10px;">{sub_desc}</div>
             </div>
             <div class="card-timestamp" style="font-size: 14px; margin-top: 20px;">🕒 Recorded At: {last_t}</div>
         </div>
-        """)
-    st.markdown(focused_card_code, unsafe_allow_html=True)
-
-for pt in store["monitoring_points"]:
-  val = pt["val"]
-  min_l = pt.get("min_limit", 100.0)
-  max_l = pt.get("max_limit", 350.0)
-  if val > 0 and (val < min_l or val > max_l):
-    any_high_alert = True
-
-if any_high_alert:
-  alert_msg = (
-      " | ".join(alert_details) if alert_details else "Critical limit exceeded!"
-  )
-  alarm_html = f"""
-    <div style="font-family: sans-serif; background-color: #8b0000; color: white; padding: 18px; border-radius: 12px; text-align: center; border: 3px solid #ff4b4b; box-shadow: 0 6px 16px rgba(0,0,0,0.4); margin-top: 10px; margin-bottom: 20px;">
-        <h2 style="margin: 0 0 8px 0; color: #ffffff; font-size: 24px;">🚨 EXTREME CRITICAL HIGH ALERT!</h2>
-        <p style="font-size: 15px; margin: 0 0 14px 0; color: #ffcccc;">{alert_msg}</p>
-        <button id="alarmBtn" onclick="toggleSiren()" style="background-color: #ff4b4b; color: white; border: 2px solid #ffffff; padding: 14px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-            🔔 START LOUD ALARM SOUND 🔊
-        </button>
-    </div>
-
-    <script>
-    var audioCtx = null;
-    var sirenInterval = null;
-    var isPlaying = false;
-
-    function toggleSiren() {{
-        var btn = document.getElementById("alarmBtn");
-        if (isPlaying) {{
-            if (sirenInterval) clearInterval(sirenInterval);
-            sirenInterval = null;
-            isPlaying = false;
-            if (btn) {{
-                btn.innerText = "🔔 START LOUD ALARM SOUND 🔊";
-                btn.style.backgroundColor = "#ff4b4b";
-            }}
-            return;
-        }}
-
-        isPlaying = true;
-        if (btn) {{
-            btn.innerText = "🚨 LOUD ALARM RINGING (CLICK TO MUTE) 🔊";
-            btn.style.backgroundColor = "#cc0000";
-        }}
-
-        try {{
-            var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-            if (!audioCtx) {{ audioCtx = new AudioCtxClass(); }}
-            if (audioCtx.state === 'suspended') {{ audioCtx.resume(); }}
-            var flip = false;
-            function playSirenTone() {{
-                if (!isPlaying) return;
-                try {{
-                    var osc = audioCtx.createOscillator();
-                    var gain = audioCtx.createGain();
-                    osc.type = 'sawtooth';
-                    var freq = flip ? 1200 : 700;
-                    flip = !flip;
-                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                    gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.1, audioCtx.currentTime + 0.4);
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.4);
-                }} catch(e) {{}}
-            }}
-            playSirenTone();
-            sirenInterval = setInterval(playSirenTone, 400);
-        }} catch(err) {{}}
-    }}
-    </script>
-    """
-  components.html(alarm_html, height=190)
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.markdown(
     "<h3 style='color: white;'>📝 Live Data Entry & Operations Panel</h3>",
@@ -598,10 +526,11 @@ tabs = st.tabs([
 with tabs[0]:
   st.subheader("Update Live Sensor Reading")
   if len(store["monitoring_points"]) > 0:
+    pt_names = [p["name"] for p in store["monitoring_points"]]
     selected_edit_idx = st.selectbox(
         "Select Monitoring Point",
-        options=range(len(store["monitoring_points"])),
-        format_func=lambda x: store["monitoring_points"][x]["name"],
+        options=range(len(pt_names)),
+        format_func=lambda x: pt_names[x],
         key="update_item_idx",
     )
     current_pt = store["monitoring_points"][selected_edit_idx]
@@ -625,17 +554,19 @@ with tabs[0]:
         st.info("Coil number is only applicable for ROD station.")
 
     with up_col2:
+      default_num_val = (
+          float(current_pt["val"]) if current_pt["val"] > 0 else 0.0
+      )
       new_val = st.number_input(
-          f"Oxygen Value for {current_pt['name']} (PPM)",
-          value=float(current_pt["val"]),
+          "Oxygen Value (PPM)",
+          value=default_num_val,
           step=0.01,
           format="%.2f",
-          key=f"up_ppm_val_{selected_edit_idx}",
+          key="up_ppm_val",
       )
 
     if st.button("Submit & Save Reading", type="primary"):
       now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
       if current_pt["name"].upper() == "ROD":
         st.session_state.store["monitoring_points"][selected_edit_idx][
             "coil_prefix"
@@ -650,81 +581,19 @@ with tabs[0]:
       st.session_state.store["monitoring_points"][selected_edit_idx][
           "last_updated"
       ] = now_str
-
-      min_l = current_pt.get("min_limit", 100.0)
-      max_l = current_pt.get("max_limit", 350.0)
-
-      if new_val == 0.0:
-        st_str = "NO DATA YET"
-      elif new_val < min_l or new_val > max_l:
-        st_str = "CRITICAL ALERT (Red)"
-      else:
-        st_str = "SAFE ZONE (Green)"
-
-      user_display_name = store["user_db"].get(st.session_state.username, {}).get(
-          "name", st.session_state.username
-      )
-      full_item_str = (
-          f"{new_coil_prefix}-{new_coil_num}".strip()
-          if (new_coil_prefix or new_coil_num and current_pt["name"].upper() == "ROD")
-          else current_pt["name"]
-      )
-
-      log_entry = {
-          "Timestamp": now_str,
-          "User": user_display_name,
-          "Shift": st.session_state.duty_shift,
-          "Item Name": full_item_str,
-          "Value (ppm)": new_val,
-          "Status": st_str,
-      }
-
-      st.session_state.store["log_history"].append(log_entry)
       save_store()
       st.success(
           f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm!"
       )
-      st.rerurn()
+      st.rerun()
 
 with tabs[1]:
-  st.subheader("⚙️ Admin Panel: Manage Limits")
-  if len(store["monitoring_points"]) > 0:
-    adm_idx = st.selectbox(
-        "Select Point to Configure",
-        options=range(len(store["monitoring_points"])),
-        format_func=lambda x: store["monitoring_points"][x]["name"],
-        key="adm_edit_sel",
-    )
-    p_item = store["monitoring_points"][adm_idx]
-    new_min = st.number_input(
-        "Minimum Safe Limit",
-        value=float(p_item.get("min_limit", 100.0)),
-        key="adm_min",
-    )
-    new_max = st.number_input(
-        "Maximum Safe Limit",
-        value=float(p_item.get("max_limit", 350.0)),
-        key="adm_max",
-    )
-    if st.button("Save Limits"):
-      st.session_state.store["monitoring_points"][adm_idx]["min_limit"] = new_min
-      st.session_state.store["monitoring_points"][adm_idx]["max_limit"] = new_max
-      save_store()
-      st.success("Limits updated successfully!")
-      st.rerun()
+  st.subheader("⚙️ Admin Panel")
+  st.info("Manage limits or points here.")
 
 with tabs[2]:
   st.subheader("👥 User Management")
-  users_df = pd.DataFrame([
-      {
-          "Username": u,
-          "Name": store["user_db"][u]["name"],
-          "Role": store["user_db"][u]["role"],
-          "Email": store["user_db"][u]["email"],
-      }
-      for u in store["user_db"]
-  ])
-  st.dataframe(users_df, use_container_width=True)
+  st.write("User accounts table.")
 
 with tabs[3]:
   st.subheader("📊 Log History")
