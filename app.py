@@ -97,7 +97,7 @@ if "username" not in st.session_state:
 if "duty_shift" not in st.session_state:
     st.session_state.duty_shift = "Shift A"
 
-# CSS Styling for Clean Cards & Display
+# CSS Styling
 st.markdown(
     """
 <style>
@@ -217,7 +217,7 @@ selected_view = st.selectbox(
     label_visibility="collapsed",
 )
 
-# Cards Display Layout (Single-line HTML strings to avoid markdown code block bugs)
+# Cards Display Layout
 if selected_view == "Show All Cards":
     cols = st.columns(len(store["monitoring_points"]))
     for idx, pt in enumerate(store["monitoring_points"]):
@@ -231,7 +231,10 @@ if selected_view == "Show All Cards":
             )
 
             coil_html = ""
-            if pt.get("coil_prefix") or pt.get("coil_num"):
+            # Sirf ROD ke liye coil show hoga
+            if pt["name"].upper() == "ROD" and (
+                pt.get("coil_prefix") or pt.get("coil_num")
+            ):
                 coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
 
             if val == 0.0:
@@ -265,23 +268,36 @@ else:
     )
     if focused_pt:
         val = focused_pt["val"]
+        min_l = focused_pt.get("min_limit", 100.0)
+        max_l = focused_pt.get("max_limit", 350.0)
+
         st.markdown(
             f"<h2 style='color: #38bdf8;'>Focused View: {focused_pt['name']}</h2>",
             unsafe_allow_html=True,
         )
-        if focused_pt.get("coil_num"):
+
+        # Sirf ROD ke liye focused view me coil show ho
+        if focused_pt["name"].upper() == "ROD" and focused_pt.get("coil_num"):
             st.markdown(
                 f"### Coil: {focused_pt.get('coil_prefix', '')}-{focused_pt.get('coil_num', '')}"
             )
+
+        # Alert status logic fix for focused view
+        if val == 0.0:
+            alert_status = "No Data Yet"
+        elif val < min_l or val > max_l:
+            alert_status = "🚨 CRITICAL: Out of Safe Range!"
+        else:
+            alert_status = "✅ Normal Safe Zone"
+
         st.metric(
             label="Oxygen Value (PPM)",
             value=f"{val:.2f} ppm",
-            delta=(
-                "Normal"
-                if focused_pt.get("min_limit", 100)
-                <= val
-                <= focused_pt.get("max_limit", 350)
-                else "Out of Range"
+            delta=alert_status,
+            delta_color=(
+                "inverse"
+                if (val < min_l or val > max_l) and val != 0.0
+                else "normal"
             ),
         )
 
@@ -314,18 +330,23 @@ with tabs[0]:
             step=0.01,
             format="%.2f",
         )
+
     with col_b:
-        # Dynamic Coil/Item inputs
-        new_prefix = st.text_input(
-            "Coil/Item Prefix",
-            value=current_pt.get("coil_prefix", "CR"),
-            key="edit_prefix",
-        )
-        new_num = st.text_input(
-            "Coil/Item Number",
-            value=current_pt.get("coil_num", ""),
-            key="edit_num",
-        )
+        # Sirf ROD ke liye Coil fields show hon gi update panel me
+        if current_pt["name"].upper() == "ROD":
+            new_prefix = st.text_input(
+                "Coil/Item Prefix",
+                value=current_pt.get("coil_prefix", "CR"),
+                key="edit_prefix",
+            )
+            new_num = st.text_input(
+                "Coil/Item Number",
+                value=current_pt.get("coil_num", ""),
+                key="edit_num",
+            )
+        else:
+            new_prefix = ""
+            new_num = ""
 
     if st.button("Submit & Save Reading", type="primary"):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -341,13 +362,17 @@ with tabs[0]:
             {
                 "Time": now_str,
                 "Station": current_pt["name"],
-                "Coil": f"{new_prefix}-{new_num}" if new_num else "N/A",
+                "Coil": (
+                    f"{new_prefix}-{new_num}"
+                    if new_num and current_pt["name"].upper() == "ROD"
+                    else "N/A"
+                ),
                 "Value": new_val,
             }
         )
         save_store()
         st.success(
-            f"Successfully updated {current_pt['name']}! (Coil: {new_prefix}-{new_num}, Value: {new_val:.2f} ppm)"
+            f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm!"
         )
         st.rerun()
 
@@ -377,11 +402,41 @@ with tabs[1]:
         st.success("Limits updated successfully!")
 
 with tabs[2]:
-    st.subheader("👥 User Management")
-    st.write("Registered Users:")
+    st.subheader("👥 User Management & Create New User")
+
+    # Naya User Add Karne ka Form
+    with st.form("create_user_form"):
+        st.markdown("#### Add New System User")
+        new_username = st.text_input("New Username (e.g. operator1)")
+        new_name = st.text_input("Full Name (e.g. Ali Khan)")
+        new_password = st.text_input("Password", type="password")
+        new_role = st.selectbox("Role", ["operator", "admin"])
+
+        submit_user = st.form_submit_button("Create User")
+        if submit_user:
+            if new_username and new_password and new_name:
+                if new_username in store["user_db"]:
+                    st.error("Username already exists!")
+                else:
+                    store["user_db"][new_username] = {
+                        "pass": new_password,
+                        "name": new_name,
+                        "role": new_role,
+                        "email": f"{new_username}@pcable.com",
+                    }
+                    save_store()
+                    st.success(
+                        f"User '{new_username}' successfully created!"
+                    )
+                    st.rerun()
+            else:
+                st.warning("Please fill in all fields.")
+
+    st.markdown("---")
+    st.write("### Registered Users List:")
     for username, details in store["user_db"].items():
         st.markdown(
-            f"- **{username}**: {details['name']} ({details['role'].upper()})"
+            f"- **{username}**: {details['name']} (Role: **{details['role'].upper()}**)"
         )
 
 with tabs[3]:
