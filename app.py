@@ -373,23 +373,23 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
     st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION
+# HEADER SECTION (CORRECTED LOGO DISPLAY)
 # ---------------------------------------------------------
 logo_html_content = ""
 if store.get("logo_image"):
   logo_html_content = f"""
     <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
-        <img src="{store['logo_image']}" width="120" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
-        <div style="color: white; font-size: 11px; font-weight: bold; margin-top: 4px;">PAKISTAN CABLES</div>
+        <img src="{store['logo_image']}" width="110" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
+        <div style="color: white; font-size: 10px; font-weight: bold; margin-top: 4px;">PAKISTAN CABLES</div>
     </div>
     """
 else:
   logo_html_content = """
-    <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 130px; height: 130px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
-        <div style="width: 50px; height: 50px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
-            <span style="color: #2ecc71; font-size: 26px; font-weight: bold;">✓</span>
+    <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 120px; height: 120px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
+        <div style="width: 45px; height: 45px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
+            <span style="color: #2ecc71; font-size: 22px; font-weight: bold;">✓</span>
         </div>
-        <span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1;">PAKISTAN CABLES</span>
+        <span style="color: white; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1;">PAKISTAN CABLES</span>
     </div>
     """
 
@@ -429,7 +429,7 @@ selected_view = st.selectbox(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# CARDS DISPLAY SECTION (FIXED FOCUSED VIEW & EXCLUSIVE COIL DISPLAY)
+# CARDS DISPLAY SECTION (EXCLUSIVE COIL DISPLAY ONLY FOR ROD)
 # ---------------------------------------------------------
 any_high_alert = False
 alert_details = []
@@ -683,16 +683,26 @@ with tabs[0]:
 
     up_col1, up_col2 = st.columns(2)
     with up_col1:
-      new_coil_prefix = st.text_input(
-          "Prefix (e.g. CR - Only for ROD)",
-          value=current_pt.get("coil_prefix", ""),
-          key="up_prefix",
-      )
-      new_coil_num = st.text_input(
-          "Item / Coil Number (Only for ROD)",
-          value=current_pt.get("coil_num", ""),
-          key="up_num",
-      )
+      # Agar point ROD hai tabhi coil fields dikhayen ya allow karein, baaki ke liye optional ya hidden rakh sakte hain
+      is_rod = current_pt["name"].upper() == "ROD"
+      if is_rod:
+        new_coil_prefix = st.text_input(
+            "Prefix (e.g. CR)",
+            value=current_pt.get("coil_prefix", ""),
+            key="up_prefix",
+        )
+        new_coil_num = st.text_input(
+            "Item / Coil Number",
+            value=current_pt.get("coil_num", ""),
+            key="up_num",
+        )
+      else:
+        new_coil_prefix = ""
+        new_coil_num = ""
+        st.info(
+            "Coil number is only applicable for ROD. Not required for"
+            f" {current_pt['name']}."
+        )
 
     with up_col2:
       default_num_val = (
@@ -709,12 +719,14 @@ with tabs[0]:
     if st.button("Submit & Save Reading", type="primary"):
       now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-      st.session_state.store["monitoring_points"][selected_edit_idx][
-          "coil_prefix"
-      ] = new_coil_prefix
-      st.session_state.store["monitoring_points"][selected_edit_idx][
-          "coil_num"
-      ] = new_coil_num
+      if is_rod:
+        st.session_state.store["monitoring_points"][selected_edit_idx][
+            "coil_prefix"
+        ] = new_coil_prefix
+        st.session_state.store["monitoring_points"][selected_edit_idx][
+            "coil_num"
+        ] = new_coil_num
+
       st.session_state.store["monitoring_points"][selected_edit_idx][
           "val"
       ] = new_val
@@ -737,7 +749,7 @@ with tabs[0]:
       )
       full_item_str = (
           f"{new_coil_prefix}-{new_coil_num}".strip()
-          if (new_coil_prefix or new_coil_num)
+          if (is_rod and (new_coil_prefix or new_coil_num))
           else current_pt["name"]
       )
 
