@@ -18,7 +18,6 @@ DATA_FILE = "store_data.json"
 default_store = {
     "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
     "app_subtitle": "Real-time oxygen tracking system with individual item thresholds and 24/7 Google Sheets logging.",
-    "bg_image": "",
     "logo_image": "",
     "alarm_sound_b64": "",
     "user_db": {
@@ -41,6 +40,8 @@ default_store = {
         },
         {
             "name": "Tundish",
+            "coil_prefix": "",
+            "coil_num": "",
             "val": 476.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
@@ -48,6 +49,8 @@ default_store = {
         },
         {
             "name": "Shaft Furnace(SF)",
+            "coil_prefix": "",
+            "coil_num": "",
             "val": 200.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
@@ -55,6 +58,8 @@ default_store = {
         },
         {
             "name": "Holding furnace(HF)",
+            "coil_prefix": "",
+            "coil_num": "",
             "val": 0.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
@@ -92,33 +97,33 @@ if "username" not in st.session_state:
 if "duty_shift" not in st.session_state:
     st.session_state.duty_shift = "Shift A"
 
-# CSS Styling
+# CSS Styling for Clean Cards & Display
 st.markdown(
     """
 <style>
 .stApp { background-color: #0F172A; color: white; }
 .main-card {
-    background-color: rgba(38, 38, 38, 0.9);
+    background-color: #1e293b;
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
     color: white;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
 }
-.card-title { font-weight: 700; font-size: 18px; margin-bottom: 4px; color: #ffffff; text-align: center; }
-.card-coil { font-weight: 600; font-size: 14px; margin-bottom: 10px; color: #38bdf8; text-align: center; }
-.card-val-green { font-size: 35px; font-weight: 800; color: #2ecc71; text-align: center; margin: 10px 0; }
-.card-val-red { font-size: 35px; font-weight: 800; color: #e74c3c; text-align: center; margin: 10px 0; }
-.badge-safe { background-color: rgba(46, 204, 113, 0.2); color: #2ecc71; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 12px; display: inline-block; }
-.badge-critical { background-color: rgba(231, 76, 60, 0.2); color: #e74c3c; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 12px; display: inline-block; }
-.card-timestamp { color: #94a3b8; font-size: 11px; text-align: center; margin-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 6px; }
+.card-title { font-weight: 700; font-size: 20px; margin-bottom: 4px; color: #ffffff; text-align: center; }
+.card-coil { font-weight: 600; font-size: 15px; margin-bottom: 12px; color: #38bdf8; text-align: center; }
+.card-val-green { font-size: 38px; font-weight: 800; color: #2ecc71; text-align: center; margin: 10px 0; }
+.card-val-red { font-size: 38px; font-weight: 800; color: #e74c3c; text-align: center; margin: 10px 0; }
+.badge-safe { background-color: rgba(46, 204, 113, 0.2); color: #2ecc71; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
+.badge-critical { background-color: rgba(231, 76, 60, 0.2); color: #e74c3c; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
+.card-timestamp { color: #94a3b8; font-size: 12px; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px; }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# Sidebar Login
+# Sidebar Login & Controls
 st.sidebar.markdown("### 🔐 User Login & Controls")
 if not st.session_state.logged_in:
     st.sidebar.warning("Please log in to continue.")
@@ -167,18 +172,7 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
         st.rerun()
 
     st.markdown("---")
-    st.markdown("#### 🔊 Custom Alarm Sound Upload")
-    uploaded_audio = st.file_uploader(
-        "Upload Alarm Audio (mp3, wav, ogg)", type=["mp3", "wav", "ogg"]
-    )
-    if uploaded_audio:
-        b64_audio = base64.b64encode(uploaded_audio.read()).decode()
-        store["alarm_sound_b64"] = f"data:audio/mp3;base64,{b64_audio}"
-        save_store()
-        st.success("Custom alarm sound uploaded successfully!")
-
-    st.markdown("---")
-    st.markdown("#### 🖼️ Company Logo & Wallpaper")
+    st.markdown("#### 🖼️ Company Logo")
     uploaded_logo = st.file_uploader(
         "Upload Logo Image", type=["png", "jpg", "jpeg"]
     )
@@ -202,16 +196,28 @@ with head_col1:
 
 with head_col2:
     st.markdown(f"<h1>{store['app_title']}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p style='color: #cbd5e1;'><em>{store['app_subtitle']}</em></p>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='color: #cbd5e1; font-size: 16px;'><em>{store['app_subtitle']}</em></p>",
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
 # View Mode Selection
-st.markdown("<h4 style='color: #38bdf8;'>🔍 Select View Mode</h4>", unsafe_allow_html=True)
-view_options = ["Show All Cards"] + [p["name"] for p in store["monitoring_points"]]
-selected_view = st.selectbox("Choose station view mode:", options=view_options, label_visibility="collapsed")
+st.markdown(
+    "<h4 style='color: #38bdf8;'>🔍 Select View Mode</h4>",
+    unsafe_allow_html=True,
+)
+view_options = ["Show All Cards"] + [
+    p["name"] for p in store["monitoring_points"]
+]
+selected_view = st.selectbox(
+    "Choose station view mode:",
+    options=view_options,
+    label_visibility="collapsed",
+)
 
-# Cards Display Layout
+# Cards Display Layout (Single-line HTML strings to avoid markdown code block bugs)
 if selected_view == "Show All Cards":
     cols = st.columns(len(store["monitoring_points"]))
     for idx, pt in enumerate(store["monitoring_points"]):
@@ -219,59 +225,130 @@ if selected_view == "Show All Cards":
             val = pt["val"]
             min_l = pt.get("min_limit", 100.0)
             max_l = pt.get("max_limit", 350.0)
-            last_t = pt.get("last_updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            last_t = pt.get(
+                "last_updated",
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            )
 
             coil_html = ""
-            if pt["name"].upper() == "ROD":
-                coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "CR")}-{pt.get("coil_num", "2002")}</div>'
+            if pt.get("coil_prefix") or pt.get("coil_num"):
+                coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
 
             if val == 0.0:
-                status_label, val_class, badge_class, sub_desc = "NO DATA YET", "card-val-green", "badge-safe", "Awaiting reading."
+                status_label, val_class, badge_class, sub_desc = (
+                    "NO DATA YET",
+                    "card-val-green",
+                    "badge-safe",
+                    "Awaiting reading.",
+                )
             elif val < min_l or val > max_l:
-                status_label, val_class, badge_class, sub_desc = "CRITICAL ALERT", "card-val-red", "badge-critical", "Out of safe range!"
+                status_label, val_class, badge_class, sub_desc = (
+                    "CRITICAL ALERT",
+                    "card-val-red",
+                    "badge-critical",
+                    "Out of safe range!",
+                )
             else:
-                status_label, val_class, badge_class, sub_desc = "SAFE ZONE", "card-val-green", "badge-safe", "Normal safe range."
+                status_label, val_class, badge_class, sub_desc = (
+                    "SAFE ZONE",
+                    "card-val-green",
+                    "badge-safe",
+                    "Normal safe range.",
+                )
 
-            card_html = f"""
-            <div class="main-card">
-                <div class="card-title">{pt['name']}</div>
-                {coil_html}
-                <div class="{val_class}">{val:.2f} <span style="font-size:16px;">ppm</span></div>
-                <div style="text-align: center;">
-                    <span class="{badge_class}">● {status_label}</span>
-                    <div style="color: #94a3b8; font-size: 11px; margin-top: 4px;">{sub_desc}</div>
-                </div>
-                <div class="card-timestamp">🕒 {last_t}</div>
-            </div>
-            """
+            card_html = f'<div class="main-card"><div class="card-title">{pt["name"]}</div>{coil_html}<div class="{val_class}">{val:.2f} <span style="font-size:16px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}">● {status_label}</span><div style="color: #94a3b8; font-size: 11px; margin-top: 6px;">{sub_desc}</div></div><div class="card-timestamp">🕒 {last_t}</div></div>'
             st.markdown(card_html, unsafe_allow_html=True)
 else:
-    focused_pt = next((p for p in store["monitoring_points"] if p["name"] == selected_view), None)
+    focused_pt = next(
+        (p for p in store["monitoring_points"] if p["name"] == selected_view),
+        None,
+    )
     if focused_pt:
         val = focused_pt["val"]
-        st.markdown(f"### Focused View: {focused_pt['name']}")
-        st.metric(label="Oxygen Value (PPM)", value=f"{val:.2f} ppm")
+        st.markdown(
+            f"<h2 style='color: #38bdf8;'>Focused View: {focused_pt['name']}</h2>",
+            unsafe_allow_html=True,
+        )
+        if focused_pt.get("coil_num"):
+            st.markdown(
+                f"### Coil: {focused_pt.get('coil_prefix', '')}-{focused_pt.get('coil_num', '')}"
+            )
+        st.metric(
+            label="Oxygen Value (PPM)",
+            value=f"{val:.2f} ppm",
+            delta=(
+                "Normal"
+                if focused_pt.get("min_limit", 100)
+                <= val
+                <= focused_pt.get("max_limit", 350)
+                else "Out of Range"
+            ),
+        )
 
 st.markdown("---")
 st.markdown("### 📝 Live Data Entry & Operations Panel")
-tabs = st.tabs(["⚡ Update Readings", "⚙️ Admin: Manage Limits", "👥 User Management", "📊 Log History"])
+tabs = st.tabs(
+    [
+        "⚡ Update Readings",
+        "⚙️ Admin: Manage Limits",
+        "👥 User Management",
+        "📊 Log History",
+    ]
+)
 
 with tabs[0]:
-    st.subheader("Update Live Sensor Reading")
+    st.subheader("Update Live Sensor Reading & Coil Information")
     pt_names = [p["name"] for p in store["monitoring_points"]]
-    selected_edit_idx = st.selectbox("Select Monitoring Point", options=range(len(pt_names)), format_func=lambda x: pt_names[x])
+    selected_edit_idx = st.selectbox(
+        "Select Monitoring Point",
+        options=range(len(pt_names)),
+        format_func=lambda x: pt_names[x],
+    )
     current_pt = store["monitoring_points"][selected_edit_idx]
 
-    new_val = st.number_input("Oxygen Value (PPM)", value=float(current_pt["val"]), step=0.01, format="%.2f")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        new_val = st.number_input(
+            "Oxygen Value (PPM)",
+            value=float(current_pt["val"]),
+            step=0.01,
+            format="%.2f",
+        )
+    with col_b:
+        # Dynamic Coil/Item inputs
+        new_prefix = st.text_input(
+            "Coil/Item Prefix",
+            value=current_pt.get("coil_prefix", "CR"),
+            key="edit_prefix",
+        )
+        new_num = st.text_input(
+            "Coil/Item Number",
+            value=current_pt.get("coil_num", ""),
+            key="edit_num",
+        )
+
     if st.button("Submit & Save Reading", type="primary"):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         store["monitoring_points"][selected_edit_idx]["val"] = new_val
+        store["monitoring_points"][selected_edit_idx][
+            "coil_prefix"
+        ] = new_prefix
+        store["monitoring_points"][selected_edit_idx]["coil_num"] = new_num
         store["monitoring_points"][selected_edit_idx]["last_updated"] = now_str
-        
+
         # Log history add karo
-        store["log_history"].append({"Time": now_str, "Station": current_pt["name"], "Value": new_val})
+        store["log_history"].append(
+            {
+                "Time": now_str,
+                "Station": current_pt["name"],
+                "Coil": f"{new_prefix}-{new_num}" if new_num else "N/A",
+                "Value": new_val,
+            }
+        )
         save_store()
-        st.success(f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm!")
+        st.success(
+            f"Successfully updated {current_pt['name']}! (Coil: {new_prefix}-{new_num}, Value: {new_val:.2f} ppm)"
+        )
         st.rerun()
 
 with tabs[1]:
@@ -281,10 +358,18 @@ with tabs[1]:
         with col1:
             st.write(f"**{pt['name']}**")
         with col2:
-            new_min = st.number_input(f"Min Limit ({pt['name']})", value=float(pt.get("min_limit", 100.0)), key=f"min_{idx}")
+            new_min = st.number_input(
+                f"Min Limit ({pt['name']})",
+                value=float(pt.get("min_limit", 100.0)),
+                key=f"min_{idx}",
+            )
         with col3:
-            new_max = st.number_input(f"Max Limit ({pt['name']})", value=float(pt.get("max_limit", 350.0)), key=f"max_{idx}")
-        
+            new_max = st.number_input(
+                f"Max Limit ({pt['name']})",
+                value=float(pt.get("max_limit", 350.0)),
+                key=f"max_{idx}",
+            )
+
         store["monitoring_points"][idx]["min_limit"] = new_min
         store["monitoring_points"][idx]["max_limit"] = new_max
     if st.button("Save All Limits"):
@@ -295,7 +380,9 @@ with tabs[2]:
     st.subheader("👥 User Management")
     st.write("Registered Users:")
     for username, details in store["user_db"].items():
-        st.markdown(f"- **{username}**: {details['name']} ({details['role'].upper()})")
+        st.markdown(
+            f"- **{username}**: {details['name']} ({details['role'].upper()})"
+        )
 
 with tabs[3]:
     st.subheader("📊 Log History")
