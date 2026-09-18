@@ -1,4 +1,3 @@
-import base64
 import datetime
 import json
 import os
@@ -16,7 +15,6 @@ st.set_page_config(
 
 DATA_FILE = "store_data.json"
 
-# Default Store Structure
 default_store = {
     "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
     "app_subtitle": (
@@ -25,20 +23,13 @@ default_store = {
     ),
     "bg_image": "",
     "logo_image": "",
-    "alarm_sound_b64": "",
     "user_db": {
         "admin": {
             "pass": "admin123",
             "name": "Admin Manager",
             "role": "admin",
             "email": "admin@pcable.com",
-        },
-        "operator1": {
-            "pass": "user123",
-            "name": "Shift Officer 1",
-            "role": "operator",
-            "email": "op1@pcable.com",
-        },
+        }
     },
     "monitoring_points": [
         {
@@ -81,26 +72,11 @@ default_store = {
     "log_history": [],
 }
 
-# Robust Session State Initialization
 if "store" not in st.session_state:
   if os.path.exists(DATA_FILE):
     try:
       with open(DATA_FILE, "r") as f:
-        loaded_data = json.load(f)
-        for k in default_store:
-          if k not in loaded_data:
-            loaded_data[k] = default_store[k]
-          if k == "monitoring_points":
-            for pt in loaded_data[k]:
-              if "min_limit" not in pt:
-                pt["min_limit"] = 100.0
-              if "max_limit" not in pt:
-                pt["max_limit"] = 350.0
-              if "last_updated" not in pt:
-                pt["last_updated"] = datetime.datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-        st.session_state.store = loaded_data
+        st.session_state.store = json.load(f)
     except Exception:
       st.session_state.store = default_store
   else:
@@ -113,7 +89,7 @@ def save_store():
   try:
     with open(DATA_FILE, "w") as f:
       json.dump(st.session_state.store, f, indent=4)
-  except Exception as e:
+  except Exception:
     pass
 
 
@@ -124,9 +100,6 @@ if "username" not in st.session_state:
 if "duty_shift" not in st.session_state:
   st.session_state.duty_shift = "Shift A"
 
-# ---------------------------------------------------------
-# CUSTOM STYLING & BACKGROUND INJECTION
-# ---------------------------------------------------------
 bg_css = """
     <style>
     .stApp {
@@ -271,11 +244,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------------------------
-# SIDEBAR CONTROLS (LOGIN, LOGOUT & ADMIN SETTINGS)
-# ---------------------------------------------------------
 st.sidebar.markdown("### 🔐 User Login & Controls")
-
 if not st.session_state.logged_in:
   st.sidebar.warning("Please log in to continue.")
   login_user = st.sidebar.text_input("Username", key="login_u")
@@ -325,29 +294,7 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
     st.rerun()
 
   st.markdown("---")
-  st.markdown("#### 🔊 Custom Alarm Sound Upload")
-  uploaded_audio = st.file_uploader(
-      "Upload Alarm Audio (mp3, wav, ogg)", type=["mp3", "wav", "ogg"], key="audio_up"
-  )
-  if uploaded_audio:
-    b64_audio = base64.b64encode(uploaded_audio.read()).decode()
-    st.session_state.store["alarm_sound_b64"] = (
-        f"data:audio/mp3;base64,{b64_audio}"
-    )
-    save_store()
-    st.success("Custom alarm sound uploaded successfully!")
-    st.rerun()
-
-  if store.get("alarm_sound_b64"):
-    if st.button("Reset to Default Siren"):
-      st.session_state.store["alarm_sound_b64"] = ""
-      save_store()
-      st.success("Reset to default alarm sound!")
-      st.rerun()
-
-  st.markdown("---")
   st.markdown("#### 🖼️ Company Logo & Wallpaper")
-
   uploaded_logo = st.file_uploader(
       "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
   )
@@ -372,30 +319,30 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
     st.success("Background wallpaper updated successfully!")
     st.rerun()
 
-# ---------------------------------------------------------
-# HEADER SECTION (CORRECTED LOGO DISPLAY)
-# ---------------------------------------------------------
-logo_html_content = ""
-if store.get("logo_image"):
-  logo_html_content = f"""
-    <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
-        <img src="{store['logo_image']}" width="110" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
-        <div style="color: white; font-size: 10px; font-weight: bold; margin-top: 4px;">PAKISTAN CABLES</div>
-    </div>
-    """
-else:
-  logo_html_content = """
-    <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 120px; height: 120px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
-        <div style="width: 45px; height: 45px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
-            <span style="color: #2ecc71; font-size: 22px; font-weight: bold;">✓</span>
-        </div>
-        <span style="color: white; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1;">PAKISTAN CABLES</span>
-    </div>
-    """
-
+# Header Section with Clean Logo Handling
 head_col1, head_col2 = st.columns([1.2, 5.8])
 with head_col1:
-  st.markdown(logo_html_content, unsafe_allow_html=True)
+  if store.get("logo_image"):
+    st.markdown(
+        f"""
+        <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
+            <img src="{store['logo_image']}" width="120" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+  else:
+    st.markdown(
+        """
+        <div style="background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%); width: 130px; height: 130px; border-radius: 16px; border: 2px solid #38bdf8; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); text-align: center; padding: 8px;">
+            <div style="width: 50px; height: 50px; border: 4px solid #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
+                <span style="color: #2ecc71; font-size: 26px; font-weight: bold;">✓</span>
+            </div>
+            <span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.1;">PAKISTAN CABLES</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 with head_col2:
   st.markdown(
@@ -411,9 +358,6 @@ with head_col2:
 
 st.markdown("---")
 
-# ---------------------------------------------------------
-# VIEW MODE SELECTOR
-# ---------------------------------------------------------
 st.markdown(
     "<h4 style='color: #38bdf8; margin-bottom: 5px;'>🔍 Select View"
     " Mode</h4>",
@@ -421,16 +365,13 @@ st.markdown(
 )
 view_options = ["Show All Cards"] + [p["name"] for p in store["monitoring_points"]]
 selected_view = st.selectbox(
-    "Choose a specific station to view in large/focused size, or select 'Show All Cards' to view all:",
+    "Choose station view mode:",
     options=view_options,
     label_visibility="collapsed",
 )
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# CARDS DISPLAY SECTION (EXCLUSIVE COIL DISPLAY ONLY FOR ROD)
-# ---------------------------------------------------------
 any_high_alert = False
 alert_details = []
 
@@ -443,18 +384,18 @@ if selected_view == "Show All Cards":
   for idx, pt in enumerate(store["monitoring_points"]):
     col = cols[idx % len(cols)]
     val = pt["val"]
-    prefix = pt.get("coil_prefix", "")
-    c_num = pt.get("coil_num", "")
     min_l = pt.get("min_limit", 100.0)
     max_l = pt.get("max_limit", 350.0)
     last_t = pt.get(
         "last_updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     )
 
-    # Coil number sirf ROD wale card ke liye show ho, baaki kisi mein nahi!
+    # Coil number ONLY for ROD card, completely removed for others
     coil_html = ""
     if pt["name"].upper() == "ROD":
-      full_coil_display = f"{prefix}-{c_num}".strip() if (prefix or c_num) else "N/A"
+      prefix = pt.get("coil_prefix", "CR")
+      c_num = pt.get("coil_num", "2002")
+      full_coil_display = f"{prefix}-{c_num}".strip()
       coil_html = f'<div class="card-coil">📦 Item/Coil: {full_coil_display}</div>'
 
     if val == 0.0:
@@ -499,14 +440,11 @@ if selected_view == "Show All Cards":
           unsafe_allow_html=True,
       )
 else:
-  # FOCUSED LARGE VIEW FOR SELECTED ITEM
   focused_pt = next(
       (p for p in store["monitoring_points"] if p["name"] == selected_view), None
   )
   if focused_pt:
     val = focused_pt["val"]
-    prefix = focused_pt.get("coil_prefix", "")
-    c_num = focused_pt.get("coil_num", "")
     min_l = focused_pt.get("min_limit", 100.0)
     max_l = focused_pt.get("max_limit", 350.0)
     last_t = focused_pt.get(
@@ -515,7 +453,9 @@ else:
 
     coil_html_large = ""
     if focused_pt["name"].upper() == "ROD":
-      full_coil_display = f"{prefix}-{c_num}".strip() if (prefix or c_num) else "N/A"
+      prefix = focused_pt.get("coil_prefix", "CR")
+      c_num = focused_pt.get("coil_num", "2002")
+      full_coil_display = f"{prefix}-{c_num}".strip()
       coil_html_large = (
           f'<div class="card-coil-large">📦 Item/Coil: {full_coil_display}</div>'
       )
@@ -545,6 +485,7 @@ else:
       badge_class = "badge-safe-large"
       sub_desc = "Normal safe range."
 
+    # CORRECTED MARKDOWN RENDERING FOR FOCUSED VIEW TO AVOID HTML TAG DISPLAY
     st.markdown(
         f"""
         <div class="main-card-large">
@@ -561,7 +502,7 @@ else:
         unsafe_allow_html=True,
     )
 
-# Check alerts across all points
+# Check all points for alerts
 for pt in store["monitoring_points"]:
   val = pt["val"]
   min_l = pt.get("min_limit", 100.0)
@@ -569,13 +510,11 @@ for pt in store["monitoring_points"]:
   if val > 0 and (val < min_l or val > max_l):
     any_high_alert = True
 
-# ---------------------------------------------------------
-# CRITICAL ALARM BANNER
-# ---------------------------------------------------------
-custom_sound_b64 = store.get("alarm_sound_b64", "")
-
+# BUILT-IN LOUD ALARM SOUND (EMBEDDED SIREN)
 if any_high_alert:
-  alert_msg = " | ".join(alert_details) if alert_details else "Critical limit exceeded!"
+  alert_msg = (
+      " | ".join(alert_details) if alert_details else "Critical limit exceeded!"
+  )
   alarm_html = f"""
     <div style="font-family: sans-serif; background-color: #8b0000; color: white; padding: 18px; border-radius: 12px; text-align: center; border: 3px solid #ff4b4b; box-shadow: 0 6px 16px rgba(0,0,0,0.4); margin-top: 10px; margin-bottom: 20px;">
         <h2 style="margin: 0 0 8px 0; color: #ffffff; font-size: 24px;">🚨 EXTREME CRITICAL HIGH ALERT!</h2>
@@ -589,21 +528,10 @@ if any_high_alert:
     var audioCtx = null;
     var sirenInterval = null;
     var isPlaying = false;
-    var customAudio = {json.dumps(custom_sound_b64)};
-    var audioObj = null;
-
-    if (customAudio) {{
-        audioObj = new Audio(customAudio);
-        audioObj.loop = true;
-    }}
 
     function toggleSiren() {{
         var btn = document.getElementById("alarmBtn");
         if (isPlaying) {{
-            if (customAudio && audioObj) {{
-                audioObj.pause();
-                audioObj.currentTime = 0;
-            }}
             if (sirenInterval) clearInterval(sirenInterval);
             sirenInterval = null;
             isPlaying = false;
@@ -620,51 +548,43 @@ if any_high_alert:
             btn.style.backgroundColor = "#cc0000";
         }}
 
-        if (customAudio && audioObj) {{
-            audioObj.play().catch(function(e){{}});
-        }} else {{
-            try {{
-                var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-                if (!audioCtx) {{ audioCtx = new AudioCtxClass(); }}
-                if (audioCtx.state === 'suspended') {{ audioCtx.resume(); }}
-                var flip = false;
-                function playSirenTone() {{
-                    if (!isPlaying) return;
-                    try {{
-                        var osc = audioCtx.createOscillator();
-                        var gain = audioCtx.createGain();
-                        osc.type = 'sawtooth';
-                        var freq = flip ? 1150 : 700;
-                        flip = !flip;
-                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                        gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.1, audioCtx.currentTime + 0.45);
-                        osc.connect(gain);
-                        gain.connect(audioCtx.destination);
-                        osc.start();
-                        osc.stop(audioCtx.currentTime + 0.45);
-                    }} catch(e) {{}}
-                }}
-                playSirenTone();
-                sirenInterval = setInterval(playSirenTone, 450);
-            }} catch(err) {{}}
-        }}
+        try {{
+            var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+            if (!audioCtx) {{ audioCtx = new AudioCtxClass(); }}
+            if (audioCtx.state === 'suspended') {{ audioCtx.resume(); }}
+            var flip = false;
+            function playSirenTone() {{
+                if (!isPlaying) return;
+                try {{
+                    var osc = audioCtx.createOscillator();
+                    var gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    var freq = flip ? 1200 : 700;
+                    flip = !flip;
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.1, audioCtx.currentTime + 0.4);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.4);
+                }} catch(e) {{}}
+            }}
+            playSirenTone();
+            sirenInterval = setInterval(playSirenTone, 400);
+        } catch(err) {{}}
     }}
     </script>
     """
   components.html(alarm_html, height=190)
 
-# ---------------------------------------------------------
-# DATA UPDATE & MANAGEMENT SECTION
-# ---------------------------------------------------------
 st.markdown(
     "<h3 style='color: white;'>📝 Live Data Entry & Operations Panel</h3>",
     unsafe_allow_html=True,
 )
-
 tabs = st.tabs([
     "⚡ Update Readings",
-    "⚙️ Admin: Manage Limits & Delete",
+    "⚙️ Admin: Manage Limits",
     "👥 User Management",
     "📊 Log History",
 ])
@@ -672,54 +592,47 @@ tabs = st.tabs([
 with tabs[0]:
   st.subheader("Update Live Sensor Reading")
   if len(store["monitoring_points"]) > 0:
-    pt_names = [p["name"] for p in store["monitoring_points"]]
+    # INDIVIDUAL POINT SELECTION WITH INDEPENDENT VALUES
     selected_edit_idx = st.selectbox(
         "Select Monitoring Point",
-        options=range(len(pt_names)),
-        format_func=lambda x: pt_names[x],
+        options=range(len(store["monitoring_points"])),
+        format_func=lambda x: store["monitoring_points"][x]["name"],
         key="update_item_idx",
     )
     current_pt = store["monitoring_points"][selected_edit_idx]
 
     up_col1, up_col2 = st.columns(2)
     with up_col1:
-      # Agar point ROD hai tabhi coil fields dikhayen ya allow karein, baaki ke liye optional ya hidden rakh sakte hain
-      is_rod = current_pt["name"].upper() == "ROD"
-      if is_rod:
+      if current_pt["name"].upper() == "ROD":
         new_coil_prefix = st.text_input(
             "Prefix (e.g. CR)",
-            value=current_pt.get("coil_prefix", ""),
+            value=current_pt.get("coil_prefix", "CR"),
             key="up_prefix",
         )
         new_coil_num = st.text_input(
             "Item / Coil Number",
-            value=current_pt.get("coil_num", ""),
+            value=current_pt.get("coil_num", "2002"),
             key="up_num",
         )
       else:
         new_coil_prefix = ""
         new_coil_num = ""
-        st.info(
-            "Coil number is only applicable for ROD. Not required for"
-            f" {current_pt['name']}."
-        )
+        st.info("Coil number is only applicable for ROD station.")
 
     with up_col2:
-      default_num_val = (
-          float(current_pt["val"]) if current_pt["val"] > 0 else 0.0
-      )
       new_val = st.number_input(
-          "Oxygen Value (PPM)",
-          value=default_num_val,
+          f"Oxygen Value for {current_pt['name']} (PPM)",
+          value=float(current_pt["val"]),
           step=0.01,
           format="%.2f",
-          key="up_ppm_val",
+          key=f"up_ppm_val_{selected_edit_idx}",
       )
 
     if st.button("Submit & Save Reading", type="primary"):
       now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-      if is_rod:
+      # Update specific selected point without affecting others
+      if current_pt["name"].upper() == "ROD":
         st.session_state.store["monitoring_points"][selected_edit_idx][
             "coil_prefix"
         ] = new_coil_prefix
@@ -749,7 +662,7 @@ with tabs[0]:
       )
       full_item_str = (
           f"{new_coil_prefix}-{new_coil_num}".strip()
-          if (is_rod and (new_coil_prefix or new_coil_num))
+          if (new_coil_prefix or new_coil_num and current_pt["name"].upper() == "ROD")
           else current_pt["name"]
       )
 
@@ -765,86 +678,39 @@ with tabs[0]:
       st.session_state.store["log_history"].append(log_entry)
       save_store()
       st.success(
-          f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm at"
-          f" {now_str}!"
+          f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm!"
       )
       st.rerun()
-  else:
-    st.warning("No monitoring points available.")
 
 with tabs[1]:
-  st.subheader("⚙️ Admin Panel: Edit Min/Max Limits & Delete Points")
+  st.subheader("⚙️ Admin Panel: Manage Limits")
   if len(store["monitoring_points"]) > 0:
-    pt_names_adm = [p["name"] for p in store["monitoring_points"]]
-    adm_edit_idx = st.selectbox(
+    adm_idx = st.selectbox(
         "Select Point to Configure",
-        options=range(len(pt_names_adm)),
-        format_func=lambda x: pt_names_adm[x],
+        options=range(len(store["monitoring_points"])),
+        format_func=lambda x: store["monitoring_points"][x]["name"],
         key="adm_edit_sel",
     )
-    adm_pt = store["monitoring_points"][adm_edit_idx]
-
-    adm_new_name = st.text_input(
-        "Station / Point Name",
-        value=adm_pt["name"],
-        key=f"adm_name_{adm_edit_idx}",
+    p_item = store["monitoring_points"][adm_idx]
+    new_min = st.number_input(
+        "Minimum Safe Limit",
+        value=float(p_item.get("min_limit", 100.0)),
+        key="adm_min",
     )
-    adm_new_min = st.number_input(
-        "Minimum Safe Limit (ppm)",
-        value=float(adm_pt.get("min_limit", 100.0)),
-        key=f"adm_min_{adm_edit_idx}",
+    new_max = st.number_input(
+        "Maximum Safe Limit",
+        value=float(p_item.get("max_limit", 350.0)),
+        key="adm_max",
     )
-    adm_new_max = st.number_input(
-        "Maximum Safe Limit (ppm)",
-        value=float(adm_pt.get("max_limit", 350.0)),
-        key=f"adm_max_{adm_edit_idx}",
-    )
-
-    col_b1, col_b2 = st.columns(2)
-    with col_b1:
-      if st.button("Save Configuration", type="primary"):
-        st.session_state.store["monitoring_points"][adm_edit_idx]["name"] = (
-            adm_new_name
-        )
-        st.session_state.store["monitoring_points"][adm_edit_idx]["min_limit"] = (
-            adm_new_min
-        )
-        st.session_state.store["monitoring_points"][adm_edit_idx]["max_limit"] = (
-            adm_new_max
-        )
-        save_store()
-        st.success("Configuration updated successfully!")
-        st.rerun()
-    with col_b2:
-      if st.button("🗑️ Delete Point", type="secondary"):
-        st.session_state.store["monitoring_points"].pop(adm_edit_idx)
-        save_store()
-        st.success("Point deleted successfully!")
-        st.rerun()
-
-  st.markdown("---")
-  st.markdown("#### ➕ Add New Monitoring Point")
-  add_p_name = st.text_input("Point Name", value="New Station", key="new_p")
-  add_p_min = st.number_input("Minimum Limit", value=100.0, key="new_p_min")
-  add_p_max = st.number_input("Maximum Limit", value=350.0, key="new_p_max")
-
-  if st.button("Add New Point"):
-    if add_p_name:
-      st.session_state.store["monitoring_points"].append({
-          "name": add_p_name,
-          "coil_prefix": "",
-          "coil_num": "",
-          "val": 0.0,
-          "min_limit": add_p_min,
-          "max_limit": add_p_max,
-          "last_updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-      })
+    if st.button("Save Limits"):
+      st.session_state.store["monitoring_points"][adm_idx]["min_limit"] = new_min
+      st.session_state.store["monitoring_points"][adm_idx]["max_limit"] = new_max
       save_store()
-      st.success("Added new point successfully!")
+      st.success("Limits updated successfully!")
       st.rerun()
 
 with tabs[2]:
-  st.subheader("👥 System User Accounts Management")
+  st.subheader("👥 User Management")
   users_df = pd.DataFrame([
       {
           "Username": u,
@@ -859,7 +725,6 @@ with tabs[2]:
 with tabs[3]:
   st.subheader("📊 Log History")
   if store["log_history"]:
-    df_logs = pd.DataFrame(store["log_history"])
-    st.dataframe(df_logs, use_container_width=True)
+    st.dataframe(pd.DataFrame(store["log_history"]), use_container_width=True)
   else:
     st.info("No logs recorded yet.")
