@@ -1,5 +1,5 @@
 import base64
-import datetime
+from datetime import datetime
 import json
 import os
 import pandas as pd
@@ -19,7 +19,7 @@ default_store = {
     "app_title": "Pakistan Cable (CCR)- Oxygen & Coil Monitoring",
     "app_subtitle": "Real-time oxygen tracking system with individual item thresholds and 24/7 Google Sheets logging.",
     "logo_image": "",
-    "alarm_sound_b64": "",
+    "google_sheet_url": "https://docs.google.com/spreadsheets/d/your-sheet-id-here/edit",
     "user_db": {
         "admin": {
             "pass": "admin123",
@@ -36,7 +36,7 @@ default_store = {
             "val": 876.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
-            "last_updated": "2026-09-18 20:00:00",
+            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
         },
         {
             "name": "Tundish",
@@ -45,7 +45,7 @@ default_store = {
             "val": 476.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
-            "last_updated": "2026-09-18 20:00:00",
+            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
         },
         {
             "name": "Shaft Furnace(SF)",
@@ -54,7 +54,7 @@ default_store = {
             "val": 200.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
-            "last_updated": "2026-09-18 20:00:00",
+            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
         },
         {
             "name": "Holding furnace(HF)",
@@ -63,7 +63,7 @@ default_store = {
             "val": 0.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
-            "last_updated": "2026-09-18 20:00:00",
+            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
         },
     ],
     "log_history": [],
@@ -111,13 +111,13 @@ st.markdown(
     color: white;
     box-shadow: 0 4px 15px rgba(0,0,0,0.4);
 }
-.card-title { font-weight: 700; font-size: 20px; margin-bottom: 4px; color: #ffffff; text-align: center; }
-.card-coil { font-weight: 600; font-size: 15px; margin-bottom: 12px; color: #38bdf8; text-align: center; }
-.card-val-green { font-size: 38px; font-weight: 800; color: #2ecc71; text-align: center; margin: 10px 0; }
-.card-val-red { font-size: 38px; font-weight: 800; color: #e74c3c; text-align: center; margin: 10px 0; }
+.card-title { font-weight: 700; font-size: 22px; margin-bottom: 6px; color: #ffffff; text-align: center; }
+.card-coil { font-weight: 600; font-size: 16px; margin-bottom: 12px; color: #38bdf8; text-align: center; }
+.card-val-green { font-size: 42px; font-weight: 800; color: #2ecc71; text-align: center; margin: 10px 0; }
+.card-val-red { font-size: 42px; font-weight: 800; color: #e74c3c; text-align: center; margin: 10px 0; }
 .badge-safe { background-color: rgba(46, 204, 113, 0.2); color: #2ecc71; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
 .badge-critical { background-color: rgba(231, 76, 60, 0.2); color: #e74c3c; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
-.card-timestamp { color: #94a3b8; font-size: 12px; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px; }
+.card-timestamp { color: #94a3b8; font-size: 13px; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -172,6 +172,17 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
         st.rerun()
 
     st.markdown("---")
+    st.markdown("#### 📊 Google Sheets Integration")
+    new_sheet_url = st.text_input(
+        "Google Sheet URL", value=store.get("google_sheet_url", "")
+    )
+    if st.button("Save Sheet URL"):
+        store["google_sheet_url"] = new_sheet_url
+        save_store()
+        st.success("Google Sheet URL updated!")
+        st.rerun()
+
+    st.markdown("---")
     st.markdown("#### 🖼️ Company Logo")
     uploaded_logo = st.file_uploader(
         "Upload Logo Image", type=["png", "jpg", "jpeg"]
@@ -217,7 +228,48 @@ selected_view = st.selectbox(
     label_visibility="collapsed",
 )
 
-# Cards Display Layout
+
+# Helper function to render a single expanded card design
+def render_station_card(pt):
+    val = pt["val"]
+    min_l = pt.get("min_limit", 100.0)
+    max_l = pt.get("max_limit", 350.0)
+    last_t = pt.get(
+        "last_updated", datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+    )
+
+    coil_html = ""
+    if pt["name"].upper() == "ROD" and (
+        pt.get("coil_prefix") or pt.get("coil_num")
+    ):
+        coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
+
+    if val == 0.0:
+        status_label, val_class, badge_class, sub_desc = (
+            "NO DATA YET",
+            "card-val-green",
+            "badge-safe",
+            "Awaiting reading.",
+        )
+    elif val < min_l or val > max_l:
+        status_label, val_class, badge_class, sub_desc = (
+            "CRITICAL ALERT",
+            "card-val-red",
+            "badge-critical",
+            "Out of safe range!",
+        )
+    else:
+        status_label, val_class, badge_class, sub_desc = (
+            "SAFE ZONE",
+            "card-val-green",
+            "badge-safe",
+            "Normal safe range.",
+        )
+
+    return f'<div class="main-card" style="padding: 30px;"><div class="card-title" style="font-size: 26px;">{pt["name"]}</div>{coil_html}<div class="{val_class}" style="font-size: 55px;">{val:.2f} <span style="font-size:22px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}" style="font-size: 16px; padding: 8px 18px;">● {status_label}</span><div style="color: #94a3b8; font-size: 14px; margin-top: 10px;">{sub_desc}</div></div><div class="card-timestamp" style="font-size: 14px;">🕒 Last Updated: {last_t}</div></div>'
+
+
+# Cards Display Layout (Show All vs Individual Expanded Card)
 if selected_view == "Show All Cards":
     cols = st.columns(len(store["monitoring_points"]))
     for idx, pt in enumerate(store["monitoring_points"]):
@@ -226,12 +278,10 @@ if selected_view == "Show All Cards":
             min_l = pt.get("min_limit", 100.0)
             max_l = pt.get("max_limit", 350.0)
             last_t = pt.get(
-                "last_updated",
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "last_updated", datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
             )
 
             coil_html = ""
-            # Sirf ROD ke liye coil show hoga
             if pt["name"].upper() == "ROD" and (
                 pt.get("coil_prefix") or pt.get("coil_num")
             ):
@@ -267,39 +317,8 @@ else:
         None,
     )
     if focused_pt:
-        val = focused_pt["val"]
-        min_l = focused_pt.get("min_limit", 100.0)
-        max_l = focused_pt.get("max_limit", 350.0)
-
-        st.markdown(
-            f"<h2 style='color: #38bdf8;'>Focused View: {focused_pt['name']}</h2>",
-            unsafe_allow_html=True,
-        )
-
-        # Sirf ROD ke liye focused view me coil show ho
-        if focused_pt["name"].upper() == "ROD" and focused_pt.get("coil_num"):
-            st.markdown(
-                f"### Coil: {focused_pt.get('coil_prefix', '')}-{focused_pt.get('coil_num', '')}"
-            )
-
-        # Alert status logic fix for focused view
-        if val == 0.0:
-            alert_status = "No Data Yet"
-        elif val < min_l or val > max_l:
-            alert_status = "🚨 CRITICAL: Out of Safe Range!"
-        else:
-            alert_status = "✅ Normal Safe Zone"
-
-        st.metric(
-            label="Oxygen Value (PPM)",
-            value=f"{val:.2f} ppm",
-            delta=alert_status,
-            delta_color=(
-                "inverse"
-                if (val < min_l or val > max_l) and val != 0.0
-                else "normal"
-            ),
-        )
+        # Ab individual view mein bhi full expanded card dikھے گا
+        st.markdown(render_station_card(focused_pt), unsafe_allow_html=True)
 
 st.markdown("---")
 st.markdown("### 📝 Live Data Entry & Operations Panel")
@@ -308,7 +327,7 @@ tabs = st.tabs(
         "⚡ Update Readings",
         "⚙️ Admin: Manage Limits",
         "👥 User Management",
-        "📊 Log History",
+        "📊 Log History & Google Sheets",
     ]
 )
 
@@ -332,7 +351,6 @@ with tabs[0]:
         )
 
     with col_b:
-        # Sirf ROD ke liye Coil fields show hon gi update panel me
         if current_pt["name"].upper() == "ROD":
             new_prefix = st.text_input(
                 "Coil/Item Prefix",
@@ -349,7 +367,8 @@ with tabs[0]:
             new_num = ""
 
     if st.button("Submit & Save Reading", type="primary"):
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Real time 12-hour format with AM/PM
+        now_str = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         store["monitoring_points"][selected_edit_idx]["val"] = new_val
         store["monitoring_points"][selected_edit_idx][
             "coil_prefix"
@@ -357,7 +376,6 @@ with tabs[0]:
         store["monitoring_points"][selected_edit_idx]["coil_num"] = new_num
         store["monitoring_points"][selected_edit_idx]["last_updated"] = now_str
 
-        # Log history add karo
         store["log_history"].append(
             {
                 "Time": now_str,
@@ -372,7 +390,7 @@ with tabs[0]:
         )
         save_store()
         st.success(
-            f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm!"
+            f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm at {now_str}!"
         )
         st.rerun()
 
@@ -403,8 +421,6 @@ with tabs[1]:
 
 with tabs[2]:
     st.subheader("👥 User Management & Create New User")
-
-    # Naya User Add Karne ka Form
     with st.form("create_user_form"):
         st.markdown("#### Add New System User")
         new_username = st.text_input("New Username (e.g. operator1)")
@@ -440,8 +456,23 @@ with tabs[2]:
         )
 
 with tabs[3]:
-    st.subheader("📊 Log History")
+    st.subheader("📊 Log History & Google Sheets Access")
+
+    col_btn1, col_btn2 = st.columns([2, 4])
+    with col_btn1:
+        sheet_link = store.get("google_sheet_url", "")
+        if sheet_link and "your-sheet-id-here" not in sheet_link:
+            st.markdown(
+                f'<a href="{sheet_link}" target="_blank"><button style="background-color: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">📂 Open Live Google Sheet</button></a>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info(
+                "Configure your Google Sheet URL in Sidebar -> Admin Settings."
+            )
+
     if store["log_history"]:
+        st.markdown("### Recent Log Entries")
         st.dataframe(pd.DataFrame(store["log_history"]), use_container_width=True)
     else:
         st.info("No logs recorded yet.")
