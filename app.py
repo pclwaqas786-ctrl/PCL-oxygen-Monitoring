@@ -3,8 +3,9 @@ from datetime import datetime
 import json
 import os
 import pandas as pd
+import pytz
+import requests
 import streamlit as st
-import streamlit.components.v1 as components
 
 # Set Page Config
 st.set_page_config(
@@ -37,7 +38,7 @@ default_store = {
             "val": 556.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
-            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
+            "last_updated": "",
         },
         {
             "name": "Tundish",
@@ -46,7 +47,7 @@ default_store = {
             "val": 185.97,
             "min_limit": 100.0,
             "max_limit": 350.0,
-            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
+            "last_updated": "",
         },
         {
             "name": "Shaft Furnace(SF)",
@@ -55,7 +56,7 @@ default_store = {
             "val": 0.0,
             "min_limit": 100.0,
             "max_limit": 650.0,
-            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
+            "last_updated": "",
         },
         {
             "name": "Holding furnace(HF)",
@@ -64,11 +65,18 @@ default_store = {
             "val": 450.0,
             "min_limit": 100.0,
             "max_limit": 500.0,
-            "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
+            "last_updated": "",
         },
     ],
     "log_history": [],
 }
+
+
+def get_pkt_time():
+    """Returns current accurate Pakistan Standard Time (PKT)"""
+    pkt_tz = pytz.timezone("Asia/Karachi")
+    return datetime.now(pkt_tz).strftime("%Y-%m-%d %I:%M:%S %p")
+
 
 if "store" not in st.session_state:
     if os.path.exists(DATA_FILE):
@@ -82,6 +90,11 @@ if "store" not in st.session_state:
 
 store = st.session_state.store
 
+# Update initial timestamps if empty
+for pt in store["monitoring_points"]:
+    if not pt.get("last_updated"):
+        pt["last_updated"] = get_pkt_time()
+
 
 def save_store():
     try:
@@ -89,6 +102,16 @@ def save_store():
             json.dump(st.session_state.store, f, indent=4)
     except Exception:
         pass
+
+
+def save_to_google_sheet(log_data, sheet_url):
+    if not sheet_url or "your-sheet-id-here" in sheet_url:
+        return False
+    try:
+        requests.post(sheet_url, json={"data": log_data}, timeout=5)
+        return True
+    except Exception:
+        return False
 
 
 if "logged_in" not in st.session_state:
@@ -177,12 +200,12 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
     st.markdown("---")
     st.markdown("#### 📊 Google Sheets Integration")
     new_sheet_url = st.text_input(
-        "Google Sheet URL", value=store.get("google_sheet_url", "")
+        "Google Sheet Webhook URL", value=store.get("google_sheet_url", "")
     )
     if st.button("Save Sheet URL"):
         store["google_sheet_url"] = new_sheet_url
         save_store()
-        st.success("Google Sheet URL updated!")
+        st.success("Google Sheet URL saved!")
         st.rerun()
 
     st.markdown("---")
@@ -217,7 +240,7 @@ with head_col2:
 
 st.markdown("---")
 
-# Alarm Condition Check (Including 0 value if out of min/max range)
+# Checking Min/Max Limits for Alarm
 play_audio = False
 critical_stations = []
 
@@ -227,38 +250,26 @@ for pt in store["monitoring_points"]:
     min_l = pt.get("min_limit", 100.0)
     max_l = pt.get("max_limit", 350.0)
 
-    # FIXED: 0 is checked against min_limit/max_limit as well
+    # STRICT CHECK: Value MUST be between min_limit and max_limit
+    # If smaller than min_limit OR greater than max_limit -> TRIGGER ALERT!
     if val < min_l or val > max_l:
         critical_stations.append(s_name)
         if not st.session_state.muted_stations.get(s_name, False):
             play_audio = True
 
-# Sound Player with Auto-retry JavaScript
+# Continuous Loud Audio Alarm
 if play_audio:
     st.error(
-        f"🚨 CRITICAL ALERT ({', '.join(critical_stations)}): Oxygen value out of range! Alarm active."
+        f"🚨 CRITICAL ALERT ({', '.join(critical_stations)}): Value out of range! Min & Max range violated."
     )
-    audio_url = (
-        "https://www.quicksounds.com/uploads/tracks/1865913508_1928092284_ext.mp3"
+    st.markdown(
+        """
+        <audio autoplay loop controls style="width: 100%; margin-bottom: 15px;">
+          <source src="https://www.quicksounds.com/uploads/tracks/1865913508_1928092284_ext.mp3" type="audio/mpeg">
+        </audio>
+    """,
+        unsafe_allow_html=True,
     )
-
-    # JS Code to bypass browser autoplay restrictions
-    sound_js = f"""
-    <script>
-    var audio = new Audio('{audio_url}');
-    audio.loop = true;
-    audio.play().catch(function(error) {{
-        console.log("Autoplay prevented. Waiting for click.");
-        document.addEventListener('click', function() {{
-            audio.play();
-        }}, {{ once: true }});
-    }});
-    </script>
-    <div style="padding: 10px; background-color: #7f1d1d; color: white; border-radius: 8px; text-align: center; margin-bottom: 10px;">
-        🔊 <b>Alarm Triggered!</b> If sound is blocked by browser, click anywhere on the page to start sound.
-    </div>
-    """
-    components.html(sound_js, height=60)
 
 # View Mode Selection
 st.markdown(
@@ -274,7 +285,7 @@ selected_view = st.selectbox(
     label_visibility="collapsed",
 )
 
-# Display Cards
+# Station Cards Layout
 cols = st.columns(len(store["monitoring_points"]))
 for idx, pt in enumerate(store["monitoring_points"]):
     with cols[idx]:
@@ -282,9 +293,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
         val = pt["val"]
         min_l = pt.get("min_limit", 100.0)
         max_l = pt.get("max_limit", 350.0)
-        last_t = pt.get(
-            "last_updated", datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
-        )
+        last_t = pt.get("last_updated", get_pkt_time())
 
         coil_html = ""
         if s_name.upper() == "ROD" and (
@@ -292,7 +301,7 @@ for idx, pt in enumerate(store["monitoring_points"]):
         ):
             coil_html = f'<div class="card-coil">📦 Item/Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
 
-        # FIXED logic: Check value strictly against min and max
+        # Value Check Logic
         is_critical = val < min_l or val > max_l
 
         if is_critical:
@@ -300,14 +309,14 @@ for idx, pt in enumerate(store["monitoring_points"]):
                 "CRITICAL ALERT",
                 "card-val-red",
                 "badge-critical",
-                "Out of safe range!",
+                f"Outside Range ({min_l} - {max_l})",
             )
         else:
             status_label, val_class, badge_class, sub_desc = (
                 "SAFE ZONE",
                 "card-val-green",
                 "badge-safe",
-                "Normal safe range.",
+                f"Within Safe Range ({min_l} - {max_l})",
             )
             st.session_state.muted_stations[s_name] = False
 
@@ -380,7 +389,9 @@ with tabs[0]:
             new_num = ""
 
     if st.button("Submit & Save Reading", type="primary"):
-        now_str = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+        # Accurate PKT local time
+        now_str = get_pkt_time()
+
         store["monitoring_points"][selected_edit_idx]["val"] = new_val
         store["monitoring_points"][selected_edit_idx][
             "coil_prefix"
@@ -399,13 +410,16 @@ with tabs[0]:
                 else "N/A"
             ),
             "Value": new_val,
+            "User": st.session_state.username,
+            "Shift": st.session_state.duty_shift,
         }
+
         store["log_history"].append(new_log)
         save_store()
 
-        st.success(
-            f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm at {now_str}!"
-        )
+        save_to_google_sheet(new_log, store.get("google_sheet_url", ""))
+
+        st.success(f"Reading updated successfully at {now_str} (PKT)!")
         st.rerun()
 
 with tabs[1]:
@@ -432,6 +446,7 @@ with tabs[1]:
     if st.button("Save All Limits"):
         save_store()
         st.success("Limits updated successfully!")
+        st.rerun()
 
 with tabs[2]:
     st.subheader("👥 User Management & Create New User")
@@ -461,10 +476,18 @@ with tabs[2]:
                     st.rerun()
 
 with tabs[3]:
-    st.subheader("📊 Log History & Google Sheets Access")
+    st.subheader("📊 Log History & Saved Records")
 
     if store["log_history"]:
         df_logs = pd.DataFrame(store["log_history"])
         st.dataframe(df_logs, use_container_width=True)
+
+        csv_data = df_logs.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📥 Download Data Logs CSV",
+            data=csv_data,
+            file_name=f"oxygen_logs_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+        )
     else:
         st.info("No logs recorded yet.")
