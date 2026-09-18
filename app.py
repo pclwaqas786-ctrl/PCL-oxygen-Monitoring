@@ -312,6 +312,8 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
       "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
   )
   if uploaded_logo:
+    import base64
+
     encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
     file_type = uploaded_logo.type or "image/png"
     st.session_state.store["logo_image"] = (
@@ -325,6 +327,8 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
       "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
   )
   if uploaded_bg:
+    import base64
+
     encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
     bg_type = uploaded_bg.type or "image/jpeg"
     st.session_state.store["bg_image"] = f"data:{bg_type};base64,{encoded_bg}"
@@ -359,7 +363,7 @@ with head_col2:
       unsafe_allow_html=True,
   )
   st.markdown(
-      "<p style='color: #cbd5e1; font-size: 16px;"
+      f"<p style='color: #cbd5e1; font-size: 16px;"
       f" margin-top:4px;'><em>{store['app_subtitle']}</em></p>",
       unsafe_allow_html=True,
   )
@@ -680,7 +684,7 @@ with tabs[0]:
       st.success(
           f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm!"
       )
-      st.rerun()
+      st.rerurn()
 
 with tabs[1]:
   st.subheader("⚙️ Admin Panel: Manage Limits")
