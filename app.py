@@ -46,33 +46,24 @@ default_store = {
             "coil_prefix": "CR",
             "coil_num": "2002",
             "val": 449.01,
-            "min": 150.0,
-            "norm_min": 150.0,
-            "norm_max": 400.0,
-            "caution_max": 600.0,
-            "high": 600.0,
+            "min_limit": 100.0,
+            "max_limit": 400.0,
         },
         {
             "name": "Tundish",
             "coil_prefix": "",
             "coil_num": "",
             "val": 0.0,
-            "min": 150.0,
-            "norm_min": 150.0,
-            "norm_max": 400.0,
-            "caution_max": 600.0,
-            "high": 600.0,
+            "min_limit": 100.0,
+            "max_limit": 400.0,
         },
         {
             "name": "Shaft Furnace",
             "coil_prefix": "",
             "coil_num": "",
             "val": 0.0,
-            "min": 150.0,
-            "norm_min": 150.0,
-            "norm_max": 400.0,
-            "caution_max": 600.0,
-            "high": 600.0,
+            "min_limit": 100.0,
+            "max_limit": 400.0,
         },
     ],
     "log_history": [
@@ -84,7 +75,7 @@ default_store = {
             "Coil Oxygen Value (ppm)": 449.01,
             "Tundish Oxygen Value (ppm)": "",
             "Shaft Furnace Oxygen Value (ppm)": "",
-            "Status": "CAUTION ZONE (Orange)",
+            "Status": "CRITICAL ALERT (Red)",
         }
     ],
 }
@@ -98,6 +89,13 @@ if "store" not in st.session_state:
         for k in default_store:
           if k not in loaded_data:
             loaded_data[k] = default_store[k]
+          # Backwards compatibility fix for limits
+          if k == "monitoring_points":
+            for pt in loaded_data[k]:
+              if "min_limit" not in pt:
+                pt["min_limit"] = pt.get("norm_min", 100.0)
+              if "max_limit" not in pt:
+                pt["max_limit"] = pt.get("caution_max", pt.get("norm_max", 400.0))
         st.session_state.store = loaded_data
     except Exception:
       st.session_state.store = default_store
@@ -206,20 +204,6 @@ st.markdown(
     text-align: center;
     margin: 15px 0;
 }
-.card-val-orange {
-    font-size: 40px;
-    font-weight: 800;
-    color: #f39c12;
-    text-align: center;
-    margin: 10px 0;
-}
-.card-val-orange-large {
-    font-size: 75px;
-    font-weight: 900;
-    color: #f39c12;
-    text-align: center;
-    margin: 15px 0;
-}
 .card-val-red {
     font-size: 40px;
     font-weight: 800;
@@ -246,24 +230,6 @@ st.markdown(
 .badge-safe-large {
     background-color: rgba(46, 204, 113, 0.2);
     color: #2ecc71;
-    padding: 10px 20px;
-    border-radius: 25px;
-    font-weight: bold;
-    font-size: 16px;
-    display: inline-block;
-}
-.badge-caution {
-    background-color: rgba(243, 156, 18, 0.2);
-    color: #f39c12;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-weight: bold;
-    font-size: 13px;
-    display: inline-block;
-}
-.badge-caution-large {
-    background-color: rgba(243, 156, 18, 0.2);
-    color: #f39c12;
     padding: 10px 20px;
     border-radius: 25px;
     font-weight: bold;
@@ -476,6 +442,9 @@ if selected_view == "Show All Cards":
     prefix = pt.get("coil_prefix", "")
     c_num = pt.get("coil_num", "")
 
+    min_l = pt.get("min_limit", 100.0)
+    max_l = pt.get("max_limit", 400.0)
+
     if prefix or c_num:
       full_coil_display = f"{prefix}-{c_num}".strip()
       if not prefix:
@@ -488,29 +457,24 @@ if selected_view == "Show All Cards":
       val_class = "card-val-green"
       badge_class = "badge-safe"
       sub_desc = "Awaiting first reading input."
-    elif val < pt["norm_min"]:
+    elif val < min_l:
       status_label = "CRITICAL ALERT (Red)"
       val_class = "card-val-red"
       badge_class = "badge-critical"
-      sub_desc = "Oxygen level critically low!"
+      sub_desc = f"Below minimum safe limit ({min_l} ppm)!"
       any_high_alert = True
       alert_details.append(
           f"{pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
       )
-    elif val > pt["caution_max"]:
+    elif val > max_l:
       status_label = "CRITICAL ALERT (Red)"
       val_class = "card-val-red"
       badge_class = "badge-critical"
-      sub_desc = "Oxygen level out of safe limits!"
+      sub_desc = f"Above maximum safe limit ({max_l} ppm)!"
       any_high_alert = True
       alert_details.append(
           f"{pt['name']} ({full_coil_display}): High Level ({val} ppm)"
       )
-    elif val > pt["norm_max"]:
-      status_label = "CAUTION ZONE (Orange)"
-      val_class = "card-val-orange"
-      badge_class = "badge-caution"
-      sub_desc = "Elevated range, monitor closely."
     else:
       status_label = "SAFE ZONE (Green)"
       val_class = "card-val-green"
@@ -542,6 +506,9 @@ else:
     prefix = focused_pt.get("coil_prefix", "")
     c_num = focused_pt.get("coil_num", "")
 
+    min_l = focused_pt.get("min_limit", 100.0)
+    max_l = focused_pt.get("max_limit", 400.0)
+
     if prefix or c_num:
       full_coil_display = f"{prefix}-{c_num}".strip()
       if not prefix:
@@ -554,29 +521,24 @@ else:
       val_class = "card-val-green-large"
       badge_class = "badge-safe-large"
       sub_desc = "Awaiting first reading input."
-    elif val < focused_pt["norm_min"]:
+    elif val < min_l:
       status_label = "CRITICAL ALERT (Red)"
       val_class = "card-val-red-large"
       badge_class = "badge-critical-large"
-      sub_desc = "Oxygen level critically low!"
+      sub_desc = f"Below minimum safe limit ({min_l} ppm)!"
       any_high_alert = True
       alert_details.append(
           f"{focused_pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
       )
-    elif val > focused_pt["caution_max"]:
+    elif val > max_l:
       status_label = "CRITICAL ALERT (Red)"
       val_class = "card-val-red-large"
       badge_class = "badge-critical-large"
-      sub_desc = "Oxygen level out of safe limits!"
+      sub_desc = f"Above maximum safe limit ({max_l} ppm)!"
       any_high_alert = True
       alert_details.append(
           f"{focused_pt['name']} ({full_coil_display}): High Level ({val} ppm)"
       )
-    elif val > focused_pt["norm_max"]:
-      status_label = "CAUTION ZONE (Orange)"
-      val_class = "card-val-orange-large"
-      badge_class = "badge-caution-large"
-      sub_desc = "Elevated range, monitor closely."
     else:
       status_label = "SAFE ZONE (Green)"
       val_class = "card-val-green-large"
@@ -601,20 +563,18 @@ else:
 # Check for alerts across all points for the alarm banner
 for pt in store["monitoring_points"]:
   val = pt["val"]
+  min_l = pt.get("min_limit", 100.0)
+  max_l = pt.get("max_limit", 400.0)
   prefix = pt.get("coil_prefix", "")
   c_num = pt.get("coil_num", "")
   full_coil_display = f"{prefix}-{c_num}".strip() if (prefix or c_num) else "N/A"
-  if val > 0 and (val < pt["norm_min"] or val > pt["caution_max"]):
+  if val > 0 and (val < min_l or val > max_l):
     any_high_alert = True
-    if (
-        f"{pt['name']} ({full_coil_display}): High Level ({val} ppm)"
-        not in alert_details
-        and f"{pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
-        not in alert_details
-    ):
-      alert_details.append(
-          f"{pt['name']} ({full_coil_display}): Level ({val} ppm)"
-      )
+    alert_str = (
+        f"{pt['name']} ({full_coil_display}): Level out of bounds ({val} ppm)"
+    )
+    if alert_str not in alert_details:
+      alert_details.append(alert_str)
 
 # ---------------------------------------------------------
 # CRITICAL ALARM BANNER
@@ -774,14 +734,13 @@ with tabs[0]:
           "val"
       ] = new_val
 
+      min_l = current_pt.get("min_limit", 100.0)
+      max_l = current_pt.get("max_limit", 400.0)
+
       if new_val == 0.0:
         st_str = "NO DATA YET"
-      elif new_val < current_pt["norm_min"]:
+      elif new_val < min_l or new_val > max_l:
         st_str = "CRITICAL ALERT (Red)"
-      elif new_val > current_pt["caution_max"]:
-        st_str = "CRITICAL ALERT (Red)"
-      elif new_val > current_pt["norm_max"]:
-        st_str = "CAUTION ZONE (Orange)"
       else:
         st_str = "SAFE ZONE (Green)"
 
@@ -834,7 +793,7 @@ with tabs[0]:
 
 # TAB 2: MANAGE LIMITS & DELETE COILS
 with tabs[1]:
-  st.subheader("⚙️ Admin Panel: Edit Limits & Delete Points")
+  st.subheader("⚙️ Admin Panel: Edit Min/Max Limits & Delete Points")
 
   if len(store["monitoring_points"]) > 0:
     pt_names_adm = [p["name"] for p in store["monitoring_points"]]
@@ -856,20 +815,27 @@ with tabs[1]:
         value=adm_pt.get("coil_prefix", ""),
         key=f"adm_pref_{adm_edit_idx}",
     )
-    adm_new_min = st.number_input(
-        "Minimum Safe Limit (ppm)",
-        value=float(adm_pt["norm_min"]),
-        key=f"adm_min_{adm_edit_idx}",
+
+    # Simplified Limits: Just Min and Max
+    current_min_val = float(
+        adm_pt.get("min_limit", adm_pt.get("norm_min", 100.0))
     )
-    adm_new_norm_max = st.number_input(
-        "Normal Max Limit (ppm)",
-        value=float(adm_pt["norm_max"]),
-        key=f"adm_nmax_{adm_edit_idx}",
+    current_max_val = float(
+        adm_pt.get(
+            "max_limit",
+            adm_pt.get("caution_max", adm_pt.get("norm_max", 400.0)),
+        )
     )
-    adm_new_caut_max = st.number_input(
-        "Caution Max Limit (ppm)",
-        value=float(adm_pt["caution_max"]),
-        key=f"adm_cmax_{adm_edit_idx}",
+
+    adm_new_min_limit = st.number_input(
+        "Minimum Safe Limit (ppm) - Below this generates an alert",
+        value=current_min_val,
+        key=f"adm_min_l_{adm_edit_idx}",
+    )
+    adm_new_max_limit = st.number_input(
+        "Maximum Safe Limit (ppm) - Above this generates an alert",
+        value=current_max_val,
+        key=f"adm_max_l_{adm_edit_idx}",
     )
 
     col_btn1, col_btn2 = st.columns(2)
@@ -881,20 +847,11 @@ with tabs[1]:
         st.session_state.store["monitoring_points"][adm_edit_idx][
             "coil_prefix"
         ] = adm_new_prefix
-        st.session_state.store["monitoring_points"][adm_edit_idx]["norm_min"] = (
-            adm_new_min
+        st.session_state.store["monitoring_points"][adm_edit_idx]["min_limit"] = (
+            adm_new_min_limit
         )
-        st.session_state.store["monitoring_points"][adm_edit_idx]["min"] = (
-            adm_new_min
-        )
-        st.session_state.store["monitoring_points"][adm_edit_idx]["norm_max"] = (
-            adm_new_norm_max
-        )
-        st.session_state.store["monitoring_points"][adm_edit_idx][
-            "caution_max"
-        ] = adm_new_caut_max
-        st.session_state.store["monitoring_points"][adm_edit_idx]["high"] = (
-            adm_new_caut_max
+        st.session_state.store["monitoring_points"][adm_edit_idx]["max_limit"] = (
+            adm_new_max_limit
         )
         save_store()
         st.success("Configuration updated successfully!")
@@ -920,6 +877,8 @@ with tabs[1]:
   )
   add_p_coil = st.text_input("Default Number/Code", value="101", key="new_p_c")
   add_p_val = st.number_input("Initial Oxygen Value", value=0.0, key="new_p_v")
+  add_p_min = st.number_input("Minimum Safe Limit", value=100.0, key="new_p_min")
+  add_p_max = st.number_input("Maximum Safe Limit", value=400.0, key="new_p_max")
 
   if st.button("Add New Monitoring Point"):
     if add_p_name:
@@ -928,11 +887,8 @@ with tabs[1]:
           "coil_prefix": add_p_pref,
           "coil_num": add_p_coil,
           "val": add_p_val,
-          "min": 150.0,
-          "norm_min": 150.0,
-          "norm_max": 400.0,
-          "caution_max": 600.0,
-          "high": 600.0,
+          "min_limit": add_p_min,
+          "max_limit": add_p_max,
       })
       save_store()
       st.success(f"Added {add_p_name} successfully!")
