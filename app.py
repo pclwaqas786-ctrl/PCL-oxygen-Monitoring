@@ -53,7 +53,7 @@ default_store = {
             "coil_num": "",
             "val": 200.0,
             "min_limit": 100.0,
-            "max_limit": 350.0,
+            "max_limit": 500.0,
             "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
         },
         {
@@ -62,7 +62,7 @@ default_store = {
             "coil_num": "",
             "val": 0.0,
             "min_limit": 100.0,
-            "max_limit": 350.0,
+            "max_limit": 650.0,
             "last_updated": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
         },
     ],
