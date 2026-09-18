@@ -96,8 +96,10 @@ if "username" not in st.session_state:
     st.session_state.username = ""
 if "duty_shift" not in st.session_state:
     st.session_state.duty_shift = "Shift A"
+if "alarm_muted" not in st.session_state:
+    st.session_state.alarm_muted = False
 
-# CSS Styling
+# CSS Styling with Extra Large Fonts
 st.markdown(
     """
 <style>
@@ -106,24 +108,24 @@ st.markdown(
     background-color: #1e293b;
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 12px;
-    padding: 20px;
+    padding: 25px;
     margin-bottom: 20px;
     color: white;
     box-shadow: 0 4px 15px rgba(0,0,0,0.4);
 }
-.card-title { font-weight: 700; font-size: 22px; margin-bottom: 6px; color: #ffffff; text-align: center; }
-.card-coil { font-weight: 600; font-size: 16px; margin-bottom: 12px; color: #38bdf8; text-align: center; }
-.card-val-green { font-size: 42px; font-weight: 800; color: #2ecc71; text-align: center; margin: 10px 0; }
-.card-val-red { font-size: 42px; font-weight: 800; color: #e74c3c; text-align: center; margin: 10px 0; }
-.badge-safe { background-color: rgba(46, 204, 113, 0.2); color: #2ecc71; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
-.badge-critical { background-color: rgba(231, 76, 60, 0.2); color: #e74c3c; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block; }
-.card-timestamp { color: #94a3b8; font-size: 13px; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px; }
+.card-title { font-weight: 700; font-size: 26px; margin-bottom: 8px; color: #ffffff; text-align: center; }
+.card-coil { font-weight: 600; font-size: 18px; margin-bottom: 12px; color: #38bdf8; text-align: center; }
+.card-val-green { font-size: 68px; font-weight: 900; color: #2ecc71; text-align: center; margin: 15px 0; }
+.card-val-red { font-size: 68px; font-weight: 900; color: #e74c3c; text-align: center; margin: 15px 0; }
+.badge-safe { background-color: rgba(46, 204, 113, 0.2); color: #2ecc71; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 15px; display: inline-block; }
+.badge-critical { background-color: rgba(231, 76, 60, 0.2); color: #e74c3c; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 15px; display: inline-block; }
+.card-timestamp { color: #94a3b8; font-size: 14px; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 10px; }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# Sidebar Login & Controls (Vault & User Info Restored Properly)
+# Sidebar Login & Controls
 st.sidebar.markdown("### 🔐 User Login & Controls")
 if not st.session_state.logged_in:
     st.sidebar.warning("Please log in to continue.")
@@ -214,7 +216,7 @@ with head_col2:
 
 st.markdown("---")
 
-# Check if any station is out of range to trigger Voice/Audio Alert
+# Check for Critical Alerts & Alarm Management
 has_critical_alert = False
 for pt in store["monitoring_points"]:
     val = pt["val"]
@@ -224,23 +226,44 @@ for pt in store["monitoring_points"]:
         has_critical_alert = True
         break
 
-# Audio / Voice Alarm HTML/JS injection if critical alert is active
+# Alarm Control Banner if Critical Alert is active
 if has_critical_alert:
-    st.markdown(
-        """
-        <audio autoplay loop>
-          <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-        </audio>
-        <script>
-            // Browser speech alert backup
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance('Critical alert! Oxygen value out of safe range!');
-                window.speechSynthesis.speak(utterance);
-            }
-        </script>
-    """,
-        unsafe_allow_html=True,
+    st.error(
+        "🚨 CRITICAL ALERT: Oxygen value is out of safe range across station(s)!"
     )
+    col_al1, col_al2 = st.columns([2, 4])
+    with col_al1:
+        if not st.session_state.alarm_muted:
+            if st.button(
+                "🔕 Mute / Stop Alarm", type="primary", use_container_width=True
+            ):
+                st.session_state.alarm_muted = True
+                st.rerun()
+        else:
+            if st.button(
+                "🔔 Unmute Alarm", type="secondary", use_container_width=True
+            ):
+                st.session_state.alarm_muted = False
+                st.rerun()
+    with col_al2:
+        if st.session_state.alarm_muted:
+            st.warning("Alarm is currently muted by operator.")
+        else:
+            st.info("Continuous alarm is ringing until muted.")
+
+    # Play continuous alarm sound if not muted
+    if not st.session_state.alarm_muted:
+        st.markdown(
+            """
+            <audio autoplay loop>
+              <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+            </audio>
+        """,
+            unsafe_allow_html=True,
+        )
+else:
+    # Reset mute flag when safe
+    st.session_state.alarm_muted = False
 
 # View Mode Selection
 st.markdown(
@@ -257,7 +280,7 @@ selected_view = st.selectbox(
 )
 
 
-# Helper function to render a single expanded card design
+# Helper function to render a single expanded card design with large font
 def render_station_card(pt):
     val = pt["val"]
     min_l = pt.get("min_limit", 100.0)
@@ -294,7 +317,7 @@ def render_station_card(pt):
             "Normal safe range.",
         )
 
-    return f'<div class="main-card" style="padding: 30px;"><div class="card-title" style="font-size: 26px;">{pt["name"]}</div>{coil_html}<div class="{val_class}" style="font-size: 55px;">{val:.2f} <span style="font-size:22px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}" style="font-size: 16px; padding: 8px 18px;">● {status_label}</span><div style="color: #94a3b8; font-size: 14px; margin-top: 10px;">{sub_desc}</div></div><div class="card-timestamp" style="font-size: 14px;">🕒 Last Updated: {last_t}</div></div>'
+    return f'<div class="main-card" style="padding: 35px;"><div class="card-title" style="font-size: 30px;">{pt["name"]}</div>{coil_html}<div class="{val_class}">{val:.2f} <span style="font-size:26px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}" style="font-size: 18px; padding: 10px 22px;">● {status_label}</span><div style="color: #94a3b8; font-size: 16px; margin-top: 12px;">{sub_desc}</div></div><div class="card-timestamp" style="font-size: 15px;">🕒 Last Updated: {last_t}</div></div>'
 
 
 # Cards Display Layout
@@ -337,7 +360,7 @@ if selected_view == "Show All Cards":
                     "Normal safe range.",
                 )
 
-            card_html = f'<div class="main-card"><div class="card-title">{pt["name"]}</div>{coil_html}<div class="{val_class}">{val:.2f} <span style="font-size:16px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}">● {status_label}</span><div style="color: #94a3b8; font-size: 11px; margin-top: 6px;">{sub_desc}</div></div><div class="card-timestamp">🕒 {last_t}</div></div>'
+            card_html = f'<div class="main-card"><div class="card-title">{pt["name"]}</div>{coil_html}<div class="{val_class}" style="font-size: 52px;">{val:.2f} <span style="font-size:20px;">ppm</span></div><div style="text-align: center;"><span class="{badge_class}">● {status_label}</span><div style="color: #94a3b8; font-size: 12px; margin-top: 8px;">{sub_desc}</div></div><div class="card-timestamp">🕒 {last_t}</div></div>'
             st.markdown(card_html, unsafe_allow_html=True)
 else:
     focused_pt = next(
@@ -394,7 +417,7 @@ with tabs[0]:
             new_num = ""
 
     if st.button("Submit & Save Reading", type="primary"):
-        # Real-time local time synchronized properly (AM/PM 12-hour format)
+        # Real-time local system time synchronized (12-hour AM/PM)
         now_str = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         store["monitoring_points"][selected_edit_idx]["val"] = new_val
         store["monitoring_points"][selected_edit_idx][
@@ -403,19 +426,33 @@ with tabs[0]:
         store["monitoring_points"][selected_edit_idx]["coil_num"] = new_num
         store["monitoring_points"][selected_edit_idx]["last_updated"] = now_str
 
-        store["log_history"].append(
-            {
-                "Time": now_str,
-                "Station": current_pt["name"],
-                "Coil": (
-                    f"{new_prefix}-{new_num}"
-                    if new_num and current_pt["name"].upper() == "ROD"
-                    else "N/A"
-                ),
-                "Value": new_val,
-            }
-        )
+        new_log = {
+            "Time": now_str,
+            "Station": current_pt["name"],
+            "Coil": (
+                f"{new_prefix}-{new_num}"
+                if new_num and current_pt["name"].upper() == "ROD"
+                else "N/A"
+            ),
+            "Value": new_val,
+        }
+        store["log_history"].append(new_log)
         save_store()
+
+        # Optional: Direct Google Sheet update integration placeholder using gspread if configured
+        sheet_link = store.get("google_sheet_url", "")
+        if "docs.google.com" in sheet_link:
+            try:
+                # To fully enable live online Google Sheet sync automatically via gspread:
+                # import gspread
+                # gc = gspread.service_account(filename='credentials.json')
+                # sh = gc.open_by_url(sheet_link)
+                # worksheet = sh.get_worksheet(0)
+                # worksheet.append_row([now_str, current_pt['name'], new_val, new_log['Coil']])
+                pass
+            except Exception:
+                pass
+
         st.success(
             f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm at {now_str}!"
         )
@@ -490,7 +527,7 @@ with tabs[3]:
         sheet_link = store.get("google_sheet_url", "")
         if sheet_link and "your-sheet-id-here" not in sheet_link:
             st.markdown(
-                f'<a href="{sheet_link}" target="_blank"><button style="background-color: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">📂 Open Live Google Sheet</button></a>',
+                f'<a href="{sheet_link}" target="_blank"><button style="background-color: #2ecc71; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px;">📂 Open Live Google Sheet</button></a>',
                 unsafe_allow_html=True,
             )
         else:
@@ -500,6 +537,16 @@ with tabs[3]:
 
     if store["log_history"]:
         st.markdown("### Recent Log Entries")
-        st.dataframe(pd.DataFrame(store["log_history"]), use_container_width=True)
+        df_logs = pd.DataFrame(store["log_history"])
+        st.dataframe(df_logs, use_container_width=True)
+
+        # CSV Download button for instant manual sync to Google Sheets if needed
+        csv_data = df_logs.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📥 Download Logs as CSV (for Google Sheets import)",
+            data=csv_data,
+            file_name="ccr_oxygen_logs.csv",
+            mime="text/csv",
+        )
     else:
         st.info("No logs recorded yet.")
