@@ -35,7 +35,13 @@ default_store = {
             "name": "Admin Manager",
             "role": "admin",
             "email": "admin@pcable.com",
-        }
+        },
+        "shoaib.sheikh": {
+            "pass": "123456",
+            "name": "Shoaib Sheikh",
+            "role": "operator",
+            "email": "shoaib@pcable.com",
+        },
     },
     "monitoring_points": [
         {
@@ -69,7 +75,7 @@ default_store = {
             "name": "Holding furnace(HF)",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 50.0,
+            "val": 150.0,
             "min_limit": 100.0,
             "max_limit": 500.0,
             "last_updated": get_pkt_time(),
@@ -160,8 +166,10 @@ if not st.session_state.logged_in:
     st.stop()
 
 user_info = store["user_db"].get(
-    st.session_state.username, {"name": "Admin Manager", "role": "admin"}
+    st.session_state.username, {"name": "Operator User", "role": "operator"}
 )
+is_admin = user_info.get("role") == "admin"
+
 st.sidebar.success(
     f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
 )
@@ -174,6 +182,22 @@ if st.sidebar.button("🚪 Logout", type="secondary"):
 st.session_state.duty_shift = st.sidebar.selectbox(
     "Select Duty Shift", ["Shift A", "Shift B"], index=0
 )
+
+# Admin Only Branding Controls in Sidebar
+if is_admin:
+    with st.sidebar.expander("⚙️ Admin Branding Settings", expanded=False):
+        new_title = st.text_input("Main Title", value=store["app_title"])
+        new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
+        new_sheet_url = st.text_input(
+            "Google Sheet Webhook URL", value=store.get("google_sheet_url", "")
+        )
+        if st.button("Save System Settings"):
+            store["app_title"] = new_title
+            store["app_subtitle"] = new_subtitle
+            store["google_sheet_url"] = new_sheet_url
+            save_store()
+            st.success("Settings updated!")
+            st.rerun()
 
 # Header Section
 head_col1, head_col2 = st.columns([1, 6])
@@ -197,9 +221,8 @@ with head_col2:
 
 st.markdown("---")
 
-# JavaScript Audio Generators according to Sound Type
+# JavaScript Audio Generators
 sound_type = store.get("selected_alarm_sound", "Loud Industrial Siren")
-
 sound_scripts = {
     "Loud Industrial Siren": """
         var osc = ctx.createOscillator();
@@ -249,7 +272,6 @@ sound_scripts = {
         osc.stop(ctx.currentTime + 0.7);
     """,
 }
-
 current_js = sound_scripts.get(
     sound_type, sound_scripts["Loud Industrial Siren"]
 )
@@ -286,7 +308,7 @@ if play_audio:
 
 st.markdown("### 🖥️ Select Monitoring Station (Full Display View)")
 
-# Tabs Selection for individual station expansion
+# Tabs Selection for Station Display
 station_names = [pt["name"] for pt in store["monitoring_points"]]
 station_tabs = st.tabs(station_names)
 
@@ -356,17 +378,22 @@ for idx, tab in enumerate(station_tabs):
                     st.rerun()
 
 st.markdown("---")
-st.markdown("### 📝 Operations & Settings Panel")
-tabs_op = st.tabs(
-    [
-        "⚡ Update Readings",
-        "🔊 Alarm Sound Settings",
-        "⚙️ Admin: Manage Limits",
-        "👥 User Management",
-        "📊 Log History",
-    ]
-)
+st.markdown("### 📝 Operations Panel")
 
+# Role Based Tab Generation
+op_tabs_list = ["⚡ Update Readings", "📊 Log History"]
+if is_admin:
+    op_tabs_list.extend(
+        [
+            "🔊 Alarm Sound Settings",
+            "⚙️ Admin: Manage Limits",
+            "👥 User Management",
+        ]
+    )
+
+tabs_op = st.tabs(op_tabs_list)
+
+# Tab 1: Update Readings (Both Admin and Operator)
 with tabs_op[0]:
     st.subheader("Update Live Sensor Reading & Coil Information")
     selected_edit_idx = st.selectbox(
@@ -434,107 +461,8 @@ with tabs_op[0]:
         st.success(f"Reading updated successfully at {now_str} (PKT)!")
         st.rerun()
 
-# Sound Change Option Tab
+# Tab 2: Log History (Both Admin and Operator)
 with tabs_op[1]:
-    st.subheader("🔊 Select Loud Alarm Sound")
-    st.info(
-        "Door se aur loud environment me sunai dene ke liye apni pasand ki alarm sound select karein."
-    )
-
-    sound_options = list(sound_scripts.keys())
-    current_selected = store.get(
-        "selected_alarm_sound", "Loud Industrial Siren"
-    )
-
-    chosen_sound = st.radio(
-        "Choose Alarm Tone Type:",
-        options=sound_options,
-        index=(
-            sound_options.index(current_selected)
-            if current_selected in sound_options
-            else 0
-        ),
-    )
-
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        if st.button("🔊 Test Selected Sound"):
-            test_js = sound_scripts[chosen_sound]
-            st.components.v1.html(
-                f"""
-            <script>
-            var ctx = new (window.AudioContext || window.webkitAudioContext)();
-            {test_js}
-            </script>
-            """,
-                height=0,
-                width=0,
-            )
-            st.toast(f"Playing test sound for: {chosen_sound}")
-
-    with col_s2:
-        if st.button("💾 Save Sound Setting", type="primary"):
-            store["selected_alarm_sound"] = chosen_sound
-            save_store()
-            st.success(
-                f"Alarm sound successfully set to: **{chosen_sound}**!"
-            )
-            st.rerun()
-
-with tabs_op[2]:
-    st.subheader("⚙️ Admin Panel - Manage Limits")
-    for idx, pt in enumerate(store["monitoring_points"]):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.write(f"**{pt['name']}**")
-        with col2:
-            new_min = st.number_input(
-                f"Min Limit ({pt['name']})",
-                value=float(pt.get("min_limit", 100.0)),
-                key=f"min_{idx}",
-            )
-        with col3:
-            new_max = st.number_input(
-                f"Max Limit ({pt['name']})",
-                value=float(pt.get("max_limit", 350.0)),
-                key=f"max_{idx}",
-            )
-
-        store["monitoring_points"][idx]["min_limit"] = new_min
-        store["monitoring_points"][idx]["max_limit"] = new_max
-    if st.button("Save All Limits"):
-        save_store()
-        st.success("Limits updated successfully!")
-        st.rerun()
-
-with tabs_op[3]:
-    st.subheader("👥 User Management & Create New User")
-    with st.form("create_user_form"):
-        st.markdown("#### Add New System User")
-        new_username = st.text_input("New Username")
-        new_name = st.text_input("Full Name")
-        new_password = st.text_input("Password", type="password")
-        new_role = st.selectbox("Role", ["operator", "admin"])
-
-        submit_user = st.form_submit_button("Create User")
-        if submit_user:
-            if new_username and new_password and new_name:
-                if new_username in store["user_db"]:
-                    st.error("Username already exists!")
-                else:
-                    store["user_db"][new_username] = {
-                        "pass": new_password,
-                        "name": new_name,
-                        "role": new_role,
-                        "email": f"{new_username}@pcable.com",
-                    }
-                    save_store()
-                    st.success(
-                        f"User '{new_username}' successfully created!"
-                    )
-                    st.rerun()
-
-with tabs_op[4]:
     st.subheader("📊 Log History & Saved Records")
 
     if store["log_history"]:
@@ -550,3 +478,96 @@ with tabs_op[4]:
         )
     else:
         st.info("No logs recorded yet.")
+
+# Admin Only Tabs
+if is_admin:
+    # Sound Settings
+    with tabs_op[2]:
+        st.subheader("🔊 Select Loud Alarm Sound")
+        sound_options = list(sound_scripts.keys())
+        current_selected = store.get(
+            "selected_alarm_sound", "Loud Industrial Siren"
+        )
+
+        chosen_sound = st.radio(
+            "Choose Alarm Tone Type:",
+            options=sound_options,
+            index=(
+                sound_options.index(current_selected)
+                if current_selected in sound_options
+                else 0
+            ),
+        )
+
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            if st.button("🔊 Test Selected Sound"):
+                test_js = sound_scripts[chosen_sound]
+                st.components.v1.html(
+                    f"<script>var ctx = new (window.AudioContext || window.webkitAudioContext)(); {test_js}</script>",
+                    height=0,
+                    width=0,
+                )
+                st.toast(f"Testing sound: {chosen_sound}")
+
+        with col_s2:
+            if st.button("💾 Save Sound Setting", type="primary"):
+                store["selected_alarm_sound"] = chosen_sound
+                save_store()
+                st.success(f"Alarm sound set to: {chosen_sound}")
+                st.rerun()
+
+    # Manage Limits
+    with tabs_op[3]:
+        st.subheader("⚙️ Admin Panel - Manage Limits")
+        for idx, pt in enumerate(store["monitoring_points"]):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.write(f"**{pt['name']}**")
+            with col2:
+                new_min = st.number_input(
+                    f"Min Limit ({pt['name']})",
+                    value=float(pt.get("min_limit", 100.0)),
+                    key=f"min_{idx}",
+                )
+            with col3:
+                new_max = st.number_input(
+                    f"Max Limit ({pt['name']})",
+                    value=float(pt.get("max_limit", 350.0)),
+                    key=f"max_{idx}",
+                )
+
+            store["monitoring_points"][idx]["min_limit"] = new_min
+            store["monitoring_points"][idx]["max_limit"] = new_max
+        if st.button("Save All Limits"):
+            save_store()
+            st.success("Limits updated successfully!")
+            st.rerun()
+
+    # User Management
+    with tabs_op[4]:
+        st.subheader("👥 User Management & Create New User")
+        with st.form("create_user_form"):
+            st.markdown("#### Add New System User")
+            new_username = st.text_input("New Username")
+            new_name = st.text_input("Full Name")
+            new_password = st.text_input("Password", type="password")
+            new_role = st.selectbox("Role", ["operator", "admin"])
+
+            submit_user = st.form_submit_button("Create User")
+            if submit_user:
+                if new_username and new_password and new_name:
+                    if new_username in store["user_db"]:
+                        st.error("Username already exists!")
+                    else:
+                        store["user_db"][new_username] = {
+                            "pass": new_password,
+                            "name": new_name,
+                            "role": new_role,
+                            "email": f"{new_username}@pcable.com",
+                        }
+                        save_store()
+                        st.success(
+                            f"User '{new_username}' successfully created!"
+                        )
+                        st.rerun()
