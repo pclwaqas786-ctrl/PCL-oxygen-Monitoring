@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Pakistan Cable (CCR) - Oxygen & Coil Monitoring",
     page_icon="🏭",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 DATA_FILE = "store_data.json"
@@ -28,6 +28,7 @@ default_store = {
     "app_subtitle": "Real-time oxygen tracking system with individual item thresholds and 24/7 Google Sheets logging.",
     "logo_image": "",
     "google_sheet_url": "https://docs.google.com/spreadsheets/d/your-sheet-id-here/edit",
+    "selected_alarm_sound": "Loud Industrial Siren",
     "user_db": {
         "admin": {
             "pass": "admin123",
@@ -56,19 +57,19 @@ default_store = {
             "last_updated": get_pkt_time(),
         },
         {
-            "name": "Shaft Furnace (SF)",
+            "name": "Shaft Furnace(SF)",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 50.0,
+            "val": 0.0,
             "min_limit": 100.0,
             "max_limit": 650.0,
             "last_updated": get_pkt_time(),
         },
         {
-            "name": "Holding Furnace (HF)",
+            "name": "Holding furnace(HF)",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 450.0,
+            "val": 50.0,
             "min_limit": 100.0,
             "max_limit": 500.0,
             "last_updated": get_pkt_time(),
@@ -117,92 +118,29 @@ if "duty_shift" not in st.session_state:
 if "muted_stations" not in st.session_state:
     st.session_state.muted_stations = {}
 
-# Custom CSS for Big Display Door Se Dikhne Ke Liye
+# Custom Styling
 st.markdown(
     """
 <style>
 .stApp { background-color: #0b0f19; color: white; }
-.big-card-container {
-    background: #111827;
-    border: 2px solid #374151;
-    border-radius: 16px;
-    padding: 24px;
-    margin-bottom: 20px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-    text-align: center;
-}
-.big-card-critical {
-    border: 3px solid #ef4444 !important;
-    background: linear-gradient(180deg, #1f1215 0%, #111827 100%);
-}
-.big-card-safe {
-    border: 3px solid #10b981 !important;
-    background: linear-gradient(180deg, #062319 0%, #111827 100%);
-}
-.big-title {
-    font-size: 32px !important;
-    font-weight: 800 !important;
-    color: #ffffff;
-    letter-spacing: 1px;
-}
-.big-coil {
-    font-size: 22px !important;
-    color: #38bdf8;
-    font-weight: 700;
-    margin-top: 5px;
-}
-.big-value-red {
-    font-size: 72px !important;
-    font-weight: 900 !important;
-    color: #ef4444;
-    margin: 10px 0;
-    text-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
-}
-.big-value-green {
-    font-size: 72px !important;
-    font-weight: 900 !important;
-    color: #10b981;
-    margin: 10px 0;
-    text-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
-}
-.big-status-critical {
-    background-color: #ef4444;
+div[data-baseweb="tab-list"] { gap: 8px; }
+button[data-baseweb="tab"] {
+    background-color: #1f2937;
     color: white;
-    font-size: 20px;
-    font-weight: 800;
-    padding: 8px 24px;
-    border-radius: 30px;
-    display: inline-block;
-    letter-spacing: 1px;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: bold;
 }
-.big-status-safe {
-    background-color: #10b981;
-    color: white;
-    font-size: 20px;
-    font-weight: 800;
-    padding: 8px 24px;
-    border-radius: 30px;
-    display: inline-block;
-    letter-spacing: 1px;
-}
-.big-subtext {
-    font-size: 16px;
-    color: #9ca3af;
-    margin-top: 10px;
-}
-.big-time {
-    font-size: 14px;
-    color: #6b7280;
-    margin-top: 15px;
-    border-top: 1px solid #374151;
-    padding-top: 10px;
+button[aria-selected="true"] {
+    background-color: #2563eb !important;
+    color: white !important;
 }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# Sidebar Controls
+# Sidebar Login Controls
 st.sidebar.markdown("### 🔐 User Login & Controls")
 if not st.session_state.logged_in:
     st.sidebar.warning("Please log in to continue.")
@@ -237,64 +175,84 @@ st.session_state.duty_shift = st.sidebar.selectbox(
     "Select Duty Shift", ["Shift A", "Shift B"], index=0
 )
 
-st.sidebar.markdown("---")
-# Admin Settings
-with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
-    st.markdown("#### App Title Settings")
-    new_title = st.text_input("Main Title", value=store["app_title"])
-    new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
-    if st.button("Save Title Settings"):
-        store["app_title"] = new_title
-        store["app_subtitle"] = new_subtitle
-        save_store()
-        st.success("Title updated successfully!")
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown("#### 📊 Google Sheets Integration")
-    new_sheet_url = st.text_input(
-        "Google Sheet Webhook URL", value=store.get("google_sheet_url", "")
-    )
-    if st.button("Save Sheet URL"):
-        store["google_sheet_url"] = new_sheet_url
-        save_store()
-        st.success("Google Sheet URL saved!")
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown("#### 🖼️ Company Logo")
-    uploaded_logo = st.file_uploader(
-        "Upload Logo Image", type=["png", "jpg", "jpeg"]
-    )
-    if uploaded_logo:
-        encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
-        store["logo_image"] = f"data:image/png;base64,{encoded_logo}"
-        save_store()
-        st.success("Logo uploaded successfully!")
-        st.rerun()
-
 # Header Section
 head_col1, head_col2 = st.columns([1, 6])
 with head_col1:
     if store.get("logo_image"):
-        st.image(store["logo_image"], width=85)
+        st.image(store["logo_image"], width=80)
     else:
         st.markdown(
-            """<div style="background: #1f2937; width: 75px; height: 75px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #38bdf8;"><span style="color: #10b981; font-size: 20px; font-weight: bold;">PCL</span></div>""",
+            """<div style="background: #1f2937; width: 70px; height: 70px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #38bdf8;"><span style="color: #10b981; font-size: 18px; font-weight: bold;">PCL</span></div>""",
             unsafe_allow_html=True,
         )
 
 with head_col2:
     st.markdown(
-        f"<h1 style='margin:0; font-size: 30px;'>{store['app_title']}</h1>",
-        unsafe_allow_html=True,
+        f"<h2 style='margin:0;'>{store['app_title']}</h2>", unsafe_allow_html=True
     )
     st.markdown(
-        f"<p style='color: #9ca3af; font-size: 14px;'><em>{store['app_subtitle']}</em></p>",
+        f"<p style='color: #9ca3af; font-size: 13px;'><em>{store['app_subtitle']}</em></p>",
         unsafe_allow_html=True,
     )
 
 st.markdown("---")
+
+# JavaScript Audio Generators according to Sound Type
+sound_type = store.get("selected_alarm_sound", "Loud Industrial Siren")
+
+sound_scripts = {
+    "Loud Industrial Siren": """
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.8, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+    """,
+    "High Pitch Beep Alert": """
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(2400, ctx.currentTime);
+        gain.gain.setValueAtTime(0.6, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+    """,
+    "Pulsing Emergency Siren": """
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.3);
+        osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.6);
+        gain.gain.setValueAtTime(0.9, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.6);
+    """,
+    "Submarine Continuous Horn": """
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        gain.gain.setValueAtTime(1.0, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.7);
+    """,
+}
+
+current_js = sound_scripts.get(
+    sound_type, sound_scripts["Loud Industrial Siren"]
+)
 
 # Checking Alarm Logic
 play_audio = False
@@ -313,72 +271,76 @@ for pt in store["monitoring_points"]:
 
 if play_audio:
     st.error(
-        f"🚨 CRITICAL ALARM ACTIVE: {', '.join(critical_stations)} limits exceeded!"
+        f"🚨 CRITICAL ALARM ACTIVE ({sound_type}): {', '.join(critical_stations)} limits exceeded!"
     )
-    alarm_script = """
+    alarm_script = f"""
     <script>
     var ctx = new (window.AudioContext || window.webkitAudioContext)();
-    function playBeep() {
-        var osc = ctx.createOscillator();
-        var gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.4);
-    }
-    var intervalId = setInterval(playBeep, 800);
+    function playAlarm() {{
+        {current_js}
+    }}
+    var intervalId = setInterval(playAlarm, 700);
     </script>
     """
     st.components.v1.html(alarm_script, height=0, width=0)
 
-# Main Display Stations (Door se dekhne ke liye Large View)
-st.markdown("### 🖥️ Live Monitoring Display")
+st.markdown("### 🖥️ Select Monitoring Station (Full Display View)")
 
-# Loop through all stations with big display format
-for idx, pt in enumerate(store["monitoring_points"]):
-    s_name = pt["name"]
-    val = pt["val"]
-    min_l = pt.get("min_limit", 100.0)
-    max_l = pt.get("max_limit", 350.0)
-    last_t = pt.get("last_updated", get_pkt_time())
-    is_critical = val < min_l or val > max_l
+# Tabs Selection for individual station expansion
+station_names = [pt["name"] for pt in store["monitoring_points"]]
+station_tabs = st.tabs(station_names)
 
-    card_class = "big-card-critical" if is_critical else "big-card-safe"
-    val_class = "big-value-red" if is_critical else "big-value-green"
-    badge_class = (
-        "big-status-critical" if is_critical else "big-status-safe"
-    )
-    status_text = "🚨 CRITICAL ALERT" if is_critical else "🟢 SAFE ZONE"
+for idx, tab in enumerate(station_tabs):
+    with tab:
+        pt = store["monitoring_points"][idx]
+        s_name = pt["name"]
+        val = pt["val"]
+        min_l = pt.get("min_limit", 100.0)
+        max_l = pt.get("max_limit", 350.0)
+        last_t = pt.get("last_updated", get_pkt_time())
+        is_critical = val < min_l or val > max_l
 
-    coil_html = ""
-    if "ROD" in s_name.upper() and (pt.get("coil_prefix") or pt.get("coil_num")):
-        coil_html = f'<div class="big-coil">📦 Coil: {pt.get("coil_prefix", "")}-{pt.get("coil_num", "")}</div>'
+        border_color = "#ef4444" if is_critical else "#10b981"
+        bg_color = "#1f1215" if is_critical else "#062319"
 
-    card_html = f"""
-    <div class="big-card-container {card_class}">
-        <div class="big-title">{s_name}</div>
-        {coil_html}
-        <div class="{val_class}">{val:.2f} <span style="font-size:28px;">PPM</span></div>
-        <div style="margin: 15px 0;">
-            <span class="{badge_class}">{status_text}</span>
+        st.markdown(
+            f"""
+        <div style="background-color: {bg_color}; border: 3px solid {border_color}; border-radius: 16px; padding: 25px; text-align: center; margin-bottom: 15px;">
+            <h1 style="color: white; margin: 0; font-size: 36px;">{s_name}</h1>
         </div>
-        <div class="big-subtext">Allowed Range: <b>{min_l} - {max_l} PPM</b></div>
-        <div class="big-time">🕒 Last Update: {last_t} (PKT)</div>
-    </div>
-    """
-    st.markdown(card_html, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
-    if is_critical:
-        is_muted = st.session_state.muted_stations.get(s_name, False)
-        btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
-        with btn_col2:
+        if "ROD" in s_name.upper() and (
+            pt.get("coil_prefix") or pt.get("coil_num")
+        ):
+            st.markdown(
+                f"<h3 style='text-align: center; color: #38bdf8; margin: 0;'>📦 Coil: {pt.get('coil_prefix', '')}-{pt.get('coil_num', '')}</h3>",
+                unsafe_allow_html=True,
+            )
+
+        val_color = "#ef4444" if is_critical else "#10b981"
+        st.markdown(
+            f"<h1 style='text-align: center; color: {val_color}; font-size: 80px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 30px;'>PPM</span></h1>",
+            unsafe_allow_html=True,
+        )
+
+        if is_critical:
+            st.error(
+                f"🚨 CRITICAL ALERT — Value out of safe bounds ({min_l} - {max_l} PPM)"
+            )
+        else:
+            st.success(f"🟢 SAFE ZONE — Normal limits ({min_l} - {max_l} PPM)")
+
+        st.caption(f"🕒 Last Updated: {last_t} (PKT)")
+
+        if is_critical:
+            is_muted = st.session_state.muted_stations.get(s_name, False)
             if not is_muted:
                 if st.button(
-                    f"🔕 Mute Alarm for {s_name}",
-                    key=f"mute_btn_{idx}",
+                    f"🔕 Mute Alarm ({s_name})",
+                    key=f"tab_mute_{idx}",
                     use_container_width=True,
                     type="primary",
                 ):
@@ -386,31 +348,31 @@ for idx, pt in enumerate(store["monitoring_points"]):
                     st.rerun()
             else:
                 if st.button(
-                    f"🔔 Unmute Alarm for {s_name}",
-                    key=f"unmute_btn_{idx}",
+                    f"🔔 Unmute Alarm ({s_name})",
+                    key=f"tab_unmute_{idx}",
                     use_container_width=True,
                 ):
                     st.session_state.muted_stations[s_name] = False
                     st.rerun()
 
 st.markdown("---")
-st.markdown("### 📝 Operations & Data Input Panel")
-tabs = st.tabs(
+st.markdown("### 📝 Operations & Settings Panel")
+tabs_op = st.tabs(
     [
         "⚡ Update Readings",
+        "🔊 Alarm Sound Settings",
         "⚙️ Admin: Manage Limits",
         "👥 User Management",
-        "📊 Log History & Google Sheets",
+        "📊 Log History",
     ]
 )
 
-with tabs[0]:
+with tabs_op[0]:
     st.subheader("Update Live Sensor Reading & Coil Information")
-    pt_names = [p["name"] for p in store["monitoring_points"]]
     selected_edit_idx = st.selectbox(
         "Select Monitoring Point",
-        options=range(len(pt_names)),
-        format_func=lambda x: pt_names[x],
+        options=range(len(station_names)),
+        format_func=lambda x: station_names[x],
     )
     current_pt = store["monitoring_points"][selected_edit_idx]
 
@@ -472,7 +434,54 @@ with tabs[0]:
         st.success(f"Reading updated successfully at {now_str} (PKT)!")
         st.rerun()
 
-with tabs[1]:
+# Sound Change Option Tab
+with tabs_op[1]:
+    st.subheader("🔊 Select Loud Alarm Sound")
+    st.info(
+        "Door se aur loud environment me sunai dene ke liye apni pasand ki alarm sound select karein."
+    )
+
+    sound_options = list(sound_scripts.keys())
+    current_selected = store.get(
+        "selected_alarm_sound", "Loud Industrial Siren"
+    )
+
+    chosen_sound = st.radio(
+        "Choose Alarm Tone Type:",
+        options=sound_options,
+        index=(
+            sound_options.index(current_selected)
+            if current_selected in sound_options
+            else 0
+        ),
+    )
+
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        if st.button("🔊 Test Selected Sound"):
+            test_js = sound_scripts[chosen_sound]
+            st.components.v1.html(
+                f"""
+            <script>
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            {test_js}
+            </script>
+            """,
+                height=0,
+                width=0,
+            )
+            st.toast(f"Playing test sound for: {chosen_sound}")
+
+    with col_s2:
+        if st.button("💾 Save Sound Setting", type="primary"):
+            store["selected_alarm_sound"] = chosen_sound
+            save_store()
+            st.success(
+                f"Alarm sound successfully set to: **{chosen_sound}**!"
+            )
+            st.rerun()
+
+with tabs_op[2]:
     st.subheader("⚙️ Admin Panel - Manage Limits")
     for idx, pt in enumerate(store["monitoring_points"]):
         col1, col2, col3 = st.columns(3)
@@ -498,7 +507,7 @@ with tabs[1]:
         st.success("Limits updated successfully!")
         st.rerun()
 
-with tabs[2]:
+with tabs_op[3]:
     st.subheader("👥 User Management & Create New User")
     with st.form("create_user_form"):
         st.markdown("#### Add New System User")
@@ -525,7 +534,7 @@ with tabs[2]:
                     )
                     st.rerun()
 
-with tabs[3]:
+with tabs_op[4]:
     st.subheader("📊 Log History & Saved Records")
 
     if store["log_history"]:
