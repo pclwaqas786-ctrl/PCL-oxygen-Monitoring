@@ -42,42 +42,43 @@ default_store = {
     },
     "monitoring_points": [
         {
-            "name": "Coil",
+            "name": "ROD",
             "coil_prefix": "CR",
             "coil_num": "2002",
-            "val": 449.01,
+            "val": 876.0,
             "min_limit": 100.0,
-            "max_limit": 400.0,
+            "max_limit": 350.0,
+            "last_updated": "2026-09-18 20:00:00",
         },
         {
             "name": "Tundish",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 0.0,
+            "val": 476.0,
             "min_limit": 100.0,
-            "max_limit": 400.0,
+            "max_limit": 350.0,
+            "last_updated": "2026-09-18 20:00:00",
         },
         {
-            "name": "Shaft Furnace",
+            "name": "Shaft Furnace(SF)",
+            "coil_prefix": "",
+            "coil_num": "",
+            "val": 200.0,
+            "min_limit": 100.0,
+            "max_limit": 350.0,
+            "last_updated": "2026-09-18 20:00:00",
+        },
+        {
+            "name": "Holding furnace(HF)",
             "coil_prefix": "",
             "coil_num": "",
             "val": 0.0,
             "min_limit": 100.0,
-            "max_limit": 400.0,
+            "max_limit": 350.0,
+            "last_updated": "2026-09-18 20:00:00",
         },
     ],
-    "log_history": [
-        {
-            "Timestamp": "2026-09-14 17:50:49",
-            "User": "Admin Manager",
-            "Shift": "Shift A",
-            "Item Name": "CR-2002",
-            "Coil Oxygen Value (ppm)": 449.01,
-            "Tundish Oxygen Value (ppm)": "",
-            "Shaft Furnace Oxygen Value (ppm)": "",
-            "Status": "CRITICAL ALERT (Red)",
-        }
-    ],
+    "log_history": [],
 }
 
 # Robust Session State Initialization
@@ -89,13 +90,16 @@ if "store" not in st.session_state:
         for k in default_store:
           if k not in loaded_data:
             loaded_data[k] = default_store[k]
-          # Backwards compatibility fix for limits
           if k == "monitoring_points":
             for pt in loaded_data[k]:
               if "min_limit" not in pt:
-                pt["min_limit"] = pt.get("norm_min", 100.0)
+                pt["min_limit"] = 100.0
               if "max_limit" not in pt:
-                pt["max_limit"] = pt.get("caution_max", pt.get("norm_max", 400.0))
+                pt["max_limit"] = 350.0
+              if "last_updated" not in pt:
+                pt["last_updated"] = datetime.datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
         st.session_state.store = loaded_data
     except Exception:
       st.session_state.store = default_store
@@ -254,6 +258,14 @@ st.markdown(
     font-size: 16px;
     display: inline-block;
 }
+.card-timestamp {
+    color: #94a3b8;
+    font-size: 11px;
+    text-align: center;
+    margin-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 6px;
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -283,7 +295,6 @@ if not st.session_state.logged_in:
       st.sidebar.error("Invalid Username or Password")
   st.stop()
 
-# Logged in user info & Logout Button
 user_info = store["user_db"].get(
     st.session_state.username, {"name": "Admin Manager", "role": "admin"}
 )
@@ -302,8 +313,7 @@ st.session_state.duty_shift = st.sidebar.selectbox(
 
 st.sidebar.markdown("---")
 
-# ADMIN SETTINGS & BRANDING PANEL
-with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
+with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
   st.markdown("#### App Title Settings")
   new_title = st.text_input("Main Title", value=store["app_title"])
   new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
@@ -342,34 +352,28 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=True):
       "Upload Logo Image", type=["png", "jpg", "jpeg", "svg"], key="logo_up"
   )
   if uploaded_logo:
-    logo_bytes = uploaded_logo.read()
-    encoded_logo = base64.b64encode(logo_bytes).decode()
-    file_type = uploaded_logo.type
-    if not file_type:
-      file_type = "image/png"
+    encoded_logo = base64.b64encode(uploaded_logo.read()).decode()
+    file_type = uploaded_logo.type or "image/png"
     st.session_state.store["logo_image"] = (
         f"data:{file_type};base64,{encoded_logo}"
     )
     save_store()
-    st.success("Logo uploaded and saved successfully!")
+    st.success("Logo uploaded successfully!")
     st.rerun()
 
   uploaded_bg = st.file_uploader(
       "Upload Background Wallpaper", type=["png", "jpg", "jpeg"], key="bg_up"
   )
   if uploaded_bg:
-    bg_bytes = uploaded_bg.read()
-    encoded_bg = base64.b64encode(bg_bytes).decode()
-    bg_type = uploaded_bg.type
-    if not bg_type:
-      bg_type = "image/jpeg"
+    encoded_bg = base64.b64encode(uploaded_bg.read()).decode()
+    bg_type = uploaded_bg.type or "image/jpeg"
     st.session_state.store["bg_image"] = f"data:{bg_type};base64,{encoded_bg}"
     save_store()
     st.success("Background wallpaper updated successfully!")
     st.rerun()
 
 # ---------------------------------------------------------
-# HEADER SECTION (DYNAMIC LOGO DISPLAY)
+# HEADER SECTION
 # ---------------------------------------------------------
 logo_html_content = ""
 if store.get("logo_image"):
@@ -408,7 +412,7 @@ with head_col2:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# VIEW MODE SELECTOR (CLICK/SELECT TO ZOOM OR VIEW ALL)
+# VIEW MODE SELECTOR
 # ---------------------------------------------------------
 st.markdown(
     "<h4 style='color: #38bdf8; margin-bottom: 5px;'>🔍 Select View"
@@ -417,7 +421,7 @@ st.markdown(
 )
 view_options = ["Show All Cards"] + [p["name"] for p in store["monitoring_points"]]
 selected_view = st.selectbox(
-    "Choose a specific station to view in large/focused size, or select 'Show All Cards' to view all three:",
+    "Choose a specific station to view in large/focused size, or select 'Show All Cards' to view all:",
     options=view_options,
     label_visibility="collapsed",
 )
@@ -425,14 +429,14 @@ selected_view = st.selectbox(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# CARDS DISPLAY SECTION (ALL OR FOCUSED LARGE VIEW)
+# CARDS DISPLAY SECTION (FIXED FOCUSED VIEW & EXCLUSIVE COIL DISPLAY)
 # ---------------------------------------------------------
 any_high_alert = False
 alert_details = []
 
 if selected_view == "Show All Cards":
   if len(store["monitoring_points"]) > 0:
-    cols = st.columns(min(len(store["monitoring_points"]), 3))
+    cols = st.columns(min(len(store["monitoring_points"]), 4))
   else:
     cols = [st.empty()]
 
@@ -441,16 +445,17 @@ if selected_view == "Show All Cards":
     val = pt["val"]
     prefix = pt.get("coil_prefix", "")
     c_num = pt.get("coil_num", "")
-
     min_l = pt.get("min_limit", 100.0)
-    max_l = pt.get("max_limit", 400.0)
+    max_l = pt.get("max_limit", 350.0)
+    last_t = pt.get(
+        "last_updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
 
-    if prefix or c_num:
-      full_coil_display = f"{prefix}-{c_num}".strip()
-      if not prefix:
-        full_coil_display = c_num
-    else:
-      full_coil_display = "N/A"
+    # Coil number sirf ROD wale card ke liye show ho, baaki kisi mein nahi!
+    coil_html = ""
+    if pt["name"].upper() == "ROD":
+      full_coil_display = f"{prefix}-{c_num}".strip() if (prefix or c_num) else "N/A"
+      coil_html = f'<div class="card-coil">📦 Item/Coil: {full_coil_display}</div>'
 
     if val == 0.0:
       status_label = "NO DATA YET"
@@ -463,18 +468,14 @@ if selected_view == "Show All Cards":
       badge_class = "badge-critical"
       sub_desc = f"Below minimum safe limit ({min_l} ppm)!"
       any_high_alert = True
-      alert_details.append(
-          f"{pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
-      )
+      alert_details.append(f"{pt['name']}: Low Level ({val} ppm)")
     elif val > max_l:
       status_label = "CRITICAL ALERT (Red)"
       val_class = "card-val-red"
       badge_class = "badge-critical"
       sub_desc = f"Above maximum safe limit ({max_l} ppm)!"
       any_high_alert = True
-      alert_details.append(
-          f"{pt['name']} ({full_coil_display}): High Level ({val} ppm)"
-      )
+      alert_details.append(f"{pt['name']}: High Level ({val} ppm)")
     else:
       status_label = "SAFE ZONE (Green)"
       val_class = "card-val-green"
@@ -486,12 +487,13 @@ if selected_view == "Show All Cards":
           f"""
             <div class="main-card">
                 <div class="card-title">{pt['name']}</div>
-                <div class="card-coil">📦 Item/Coil: {full_coil_display}</div>
+                {coil_html}
                 <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
                 <div style="text-align: center; margin-top: 10px;">
                     <span class="{badge_class}">● {status_label}</span>
                     <div style="color: #94a3b8; font-size: 12px; margin-top: 6px;">{sub_desc}</div>
                 </div>
+                <div class="card-timestamp">🕒 Recorded At: {last_t}</div>
             </div>
             """,
           unsafe_allow_html=True,
@@ -505,16 +507,18 @@ else:
     val = focused_pt["val"]
     prefix = focused_pt.get("coil_prefix", "")
     c_num = focused_pt.get("coil_num", "")
-
     min_l = focused_pt.get("min_limit", 100.0)
-    max_l = focused_pt.get("max_limit", 400.0)
+    max_l = focused_pt.get("max_limit", 350.0)
+    last_t = focused_pt.get(
+        "last_updated", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
 
-    if prefix or c_num:
-      full_coil_display = f"{prefix}-{c_num}".strip()
-      if not prefix:
-        full_coil_display = c_num
-    else:
-      full_coil_display = "N/A"
+    coil_html_large = ""
+    if focused_pt["name"].upper() == "ROD":
+      full_coil_display = f"{prefix}-{c_num}".strip() if (prefix or c_num) else "N/A"
+      coil_html_large = (
+          f'<div class="card-coil-large">📦 Item/Coil: {full_coil_display}</div>'
+      )
 
     if val == 0.0:
       status_label = "NO DATA YET"
@@ -527,18 +531,14 @@ else:
       badge_class = "badge-critical-large"
       sub_desc = f"Below minimum safe limit ({min_l} ppm)!"
       any_high_alert = True
-      alert_details.append(
-          f"{focused_pt['name']} ({full_coil_display}): Low Level ({val} ppm)"
-      )
+      alert_details.append(f"{focused_pt['name']}: Low Level ({val} ppm)")
     elif val > max_l:
       status_label = "CRITICAL ALERT (Red)"
       val_class = "card-val-red-large"
       badge_class = "badge-critical-large"
       sub_desc = f"Above maximum safe limit ({max_l} ppm)!"
       any_high_alert = True
-      alert_details.append(
-          f"{focused_pt['name']} ({full_coil_display}): High Level ({val} ppm)"
-      )
+      alert_details.append(f"{focused_pt['name']}: High Level ({val} ppm)")
     else:
       status_label = "SAFE ZONE (Green)"
       val_class = "card-val-green-large"
@@ -549,32 +549,25 @@ else:
         f"""
         <div class="main-card-large">
             <div class="card-title-large">🔍 Focused View: {focused_pt['name']}</div>
-            <div class="card-coil-large">📦 Item/Coil: {full_coil_display}</div>
+            {coil_html_large}
             <div class="{val_class}">{val:.2f} <span style="font-size:30px;">ppm</span></div>
             <div style="text-align: center; margin-top: 20px;">
                 <span class="{badge_class}">● {status_label}</span>
                 <div style="color: #cbd5e1; font-size: 16px; margin-top: 10px;">{sub_desc}</div>
             </div>
+            <div class="card-timestamp" style="font-size: 14px; margin-top: 20px;">🕒 Recorded At: {last_t}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-# Check for alerts across all points for the alarm banner
+# Check alerts across all points
 for pt in store["monitoring_points"]:
   val = pt["val"]
   min_l = pt.get("min_limit", 100.0)
-  max_l = pt.get("max_limit", 400.0)
-  prefix = pt.get("coil_prefix", "")
-  c_num = pt.get("coil_num", "")
-  full_coil_display = f"{prefix}-{c_num}".strip() if (prefix or c_num) else "N/A"
+  max_l = pt.get("max_limit", 350.0)
   if val > 0 and (val < min_l or val > max_l):
     any_high_alert = True
-    alert_str = (
-        f"{pt['name']} ({full_coil_display}): Level out of bounds ({val} ppm)"
-    )
-    if alert_str not in alert_details:
-      alert_details.append(alert_str)
 
 # ---------------------------------------------------------
 # CRITICAL ALARM BANNER
@@ -582,7 +575,7 @@ for pt in store["monitoring_points"]:
 custom_sound_b64 = store.get("alarm_sound_b64", "")
 
 if any_high_alert:
-  alert_msg = " | ".join(alert_details)
+  alert_msg = " | ".join(alert_details) if alert_details else "Critical limit exceeded!"
   alarm_html = f"""
     <div style="font-family: sans-serif; background-color: #8b0000; color: white; padding: 18px; border-radius: 12px; text-align: center; border: 3px solid #ff4b4b; box-shadow: 0 6px 16px rgba(0,0,0,0.4); margin-top: 10px; margin-bottom: 20px;">
         <h2 style="margin: 0 0 8px 0; color: #ffffff; font-size: 24px;">🚨 EXTREME CRITICAL HIGH ALERT!</h2>
@@ -670,20 +663,18 @@ st.markdown(
 )
 
 tabs = st.tabs([
-    "⚡ Update Readings & Coil No",
+    "⚡ Update Readings",
     "⚙️ Admin: Manage Limits & Delete",
     "👥 User Management",
     "📊 Log History",
 ])
 
-# TAB 1: UPDATE VALUES & COIL NUMBER
 with tabs[0]:
-  st.subheader("Update Live Sensor Reading & Specific Column")
+  st.subheader("Update Live Sensor Reading")
   if len(store["monitoring_points"]) > 0:
     pt_names = [p["name"] for p in store["monitoring_points"]]
-
     selected_edit_idx = st.selectbox(
-        "1. Select Monitoring Point (Coil / Tundish / Shaft Furnace)",
+        "Select Monitoring Point",
         options=range(len(pt_names)),
         format_func=lambda x: pt_names[x],
         key="update_item_idx",
@@ -693,12 +684,12 @@ with tabs[0]:
     up_col1, up_col2 = st.columns(2)
     with up_col1:
       new_coil_prefix = st.text_input(
-          "Prefix (e.g. CR)",
+          "Prefix (e.g. CR - Only for ROD)",
           value=current_pt.get("coil_prefix", ""),
           key="up_prefix",
       )
       new_coil_num = st.text_input(
-          "Item / Coil Number (e.g. 2002, 2003, 554)",
+          "Item / Coil Number (Only for ROD)",
           value=current_pt.get("coil_num", ""),
           key="up_num",
       )
@@ -716,26 +707,23 @@ with tabs[0]:
       )
 
     if st.button("Submit & Save Reading", type="primary"):
+      now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
       st.session_state.store["monitoring_points"][selected_edit_idx][
           "coil_prefix"
       ] = new_coil_prefix
       st.session_state.store["monitoring_points"][selected_edit_idx][
           "coil_num"
       ] = new_coil_num
-
-      if new_coil_prefix or new_coil_num:
-        full_item_str = f"{new_coil_prefix}-{new_coil_num}".strip()
-        if not new_coil_prefix:
-          full_item_str = new_coil_num
-      else:
-        full_item_str = current_pt["name"]
-
       st.session_state.store["monitoring_points"][selected_edit_idx][
           "val"
       ] = new_val
+      st.session_state.store["monitoring_points"][selected_edit_idx][
+          "last_updated"
+      ] = now_str
 
       min_l = current_pt.get("min_limit", 100.0)
-      max_l = current_pt.get("max_limit", 400.0)
+      max_l = current_pt.get("max_limit", 350.0)
 
       if new_val == 0.0:
         st_str = "NO DATA YET"
@@ -744,9 +732,13 @@ with tabs[0]:
       else:
         st_str = "SAFE ZONE (Green)"
 
-      now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
       user_display_name = store["user_db"].get(st.session_state.username, {}).get(
           "name", st.session_state.username
+      )
+      full_item_str = (
+          f"{new_coil_prefix}-{new_coil_num}".strip()
+          if (new_coil_prefix or new_coil_num)
+          else current_pt["name"]
       )
 
       log_entry = {
@@ -754,51 +746,26 @@ with tabs[0]:
           "User": user_display_name,
           "Shift": st.session_state.duty_shift,
           "Item Name": full_item_str,
-          "Coil Oxygen Value (ppm)": (
-              new_val if current_pt["name"] == "Coil" else ""
-          ),
-          "Tundish Oxygen Value (ppm)": (
-              new_val if current_pt["name"] == "Tundish" else ""
-          ),
-          "Shaft Furnace Oxygen Value (ppm)": (
-              new_val if current_pt["name"] == "Shaft Furnace" else ""
-          ),
+          "Value (ppm)": new_val,
           "Status": st_str,
       }
 
       st.session_state.store["log_history"].append(log_entry)
       save_store()
-
-      # GOOGLE SHEETS SYNC
-      try:
-        import gspread
-
-        if "gcp_service_account" in st.secrets:
-          gc = gspread.service_account_from_dict(
-              st.secrets["gcp_service_account"]
-          )
-          sh = gc.open("CCR_Oxygen_Logs")
-          worksheet = sh.get_worksheet(0)
-          worksheet.append_row(list(log_entry.values()))
-      except Exception as e:
-        pass
-
       st.success(
-          f"Successfully updated {current_pt['name']} ({full_item_str}) to"
-          f" {new_val:.2f} ppm and saved successfully!"
+          f"Successfully updated {current_pt['name']} to {new_val:.2f} ppm at"
+          f" {now_str}!"
       )
       st.rerun()
   else:
     st.warning("No monitoring points available.")
 
-# TAB 2: MANAGE LIMITS & DELETE COILS
 with tabs[1]:
   st.subheader("⚙️ Admin Panel: Edit Min/Max Limits & Delete Points")
-
   if len(store["monitoring_points"]) > 0:
     pt_names_adm = [p["name"] for p in store["monitoring_points"]]
     adm_edit_idx = st.selectbox(
-        "Select Point to Configure or Delete",
+        "Select Point to Configure",
         options=range(len(pt_names_adm)),
         format_func=lambda x: pt_names_adm[x],
         key="adm_edit_sel",
@@ -806,95 +773,64 @@ with tabs[1]:
     adm_pt = store["monitoring_points"][adm_edit_idx]
 
     adm_new_name = st.text_input(
-        "Edit Station / Point Name",
+        "Station / Point Name",
         value=adm_pt["name"],
         key=f"adm_name_{adm_edit_idx}",
     )
-    adm_new_prefix = st.text_input(
-        "Prefix (e.g. CR, leave empty if not required)",
-        value=adm_pt.get("coil_prefix", ""),
-        key=f"adm_pref_{adm_edit_idx}",
+    adm_new_min = st.number_input(
+        "Minimum Safe Limit (ppm)",
+        value=float(adm_pt.get("min_limit", 100.0)),
+        key=f"adm_min_{adm_edit_idx}",
+    )
+    adm_new_max = st.number_input(
+        "Maximum Safe Limit (ppm)",
+        value=float(adm_pt.get("max_limit", 350.0)),
+        key=f"adm_max_{adm_edit_idx}",
     )
 
-    # Simplified Limits: Just Min and Max
-    current_min_val = float(
-        adm_pt.get("min_limit", adm_pt.get("norm_min", 100.0))
-    )
-    current_max_val = float(
-        adm_pt.get(
-            "max_limit",
-            adm_pt.get("caution_max", adm_pt.get("norm_max", 400.0)),
-        )
-    )
-
-    adm_new_min_limit = st.number_input(
-        "Minimum Safe Limit (ppm) - Below this generates an alert",
-        value=current_min_val,
-        key=f"adm_min_l_{adm_edit_idx}",
-    )
-    adm_new_max_limit = st.number_input(
-        "Maximum Safe Limit (ppm) - Above this generates an alert",
-        value=current_max_val,
-        key=f"adm_max_l_{adm_edit_idx}",
-    )
-
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
       if st.button("Save Configuration", type="primary"):
         st.session_state.store["monitoring_points"][adm_edit_idx]["name"] = (
             adm_new_name
         )
-        st.session_state.store["monitoring_points"][adm_edit_idx][
-            "coil_prefix"
-        ] = adm_new_prefix
         st.session_state.store["monitoring_points"][adm_edit_idx]["min_limit"] = (
-            adm_new_min_limit
+            adm_new_min
         )
         st.session_state.store["monitoring_points"][adm_edit_idx]["max_limit"] = (
-            adm_new_max_limit
+            adm_new_max
         )
         save_store()
         st.success("Configuration updated successfully!")
         st.rerun()
-
-    with col_btn2:
-      if st.button("🗑️ Delete Selected Point", type="secondary"):
-        del_name = st.session_state.store["monitoring_points"][adm_edit_idx][
-            "name"
-        ]
+    with col_b2:
+      if st.button("🗑️ Delete Point", type="secondary"):
         st.session_state.store["monitoring_points"].pop(adm_edit_idx)
         save_store()
-        st.success(f"Deleted {del_name} successfully!")
+        st.success("Point deleted successfully!")
         st.rerun()
 
   st.markdown("---")
   st.markdown("#### ➕ Add New Monitoring Point")
-  add_p_name = st.text_input(
-      "Point Name (e.g. Furnace Station)", value="Furnace", key="new_p"
-  )
-  add_p_pref = st.text_input(
-      "Prefix (Leave empty if no prefix needed)", value="", key="new_pr"
-  )
-  add_p_coil = st.text_input("Default Number/Code", value="101", key="new_p_c")
-  add_p_val = st.number_input("Initial Oxygen Value", value=0.0, key="new_p_v")
-  add_p_min = st.number_input("Minimum Safe Limit", value=100.0, key="new_p_min")
-  add_p_max = st.number_input("Maximum Safe Limit", value=400.0, key="new_p_max")
+  add_p_name = st.text_input("Point Name", value="New Station", key="new_p")
+  add_p_min = st.number_input("Minimum Limit", value=100.0, key="new_p_min")
+  add_p_max = st.number_input("Maximum Limit", value=350.0, key="new_p_max")
 
-  if st.button("Add New Monitoring Point"):
+  if st.button("Add New Point"):
     if add_p_name:
       st.session_state.store["monitoring_points"].append({
           "name": add_p_name,
-          "coil_prefix": add_p_pref,
-          "coil_num": add_p_coil,
-          "val": add_p_val,
+          "coil_prefix": "",
+          "coil_num": "",
+          "val": 0.0,
           "min_limit": add_p_min,
           "max_limit": add_p_max,
+          "last_updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
       })
       save_store()
-      st.success(f"Added {add_p_name} successfully!")
+      st.success("Added new point successfully!")
       st.rerun()
 
-# USER MANAGEMENT TAB
 with tabs[2]:
   st.subheader("👥 System User Accounts Management")
   users_df = pd.DataFrame([
@@ -908,36 +844,10 @@ with tabs[2]:
   ])
   st.dataframe(users_df, use_container_width=True)
 
-  st.markdown("#### ➕ Create New User Account")
-  nu_user = st.text_input("New Username", key="nu_user_input")
-  nu_pass = st.text_input("New Password", type="password", key="nu_pass_input")
-  nu_name = st.text_input("Full Name", key="nu_name_input")
-  nu_email = st.text_input("Email", key="nu_email_input")
-  nu_role = st.selectbox("Role", ["operator", "admin"], key="nu_role_input")
-
-  if st.button("Create New Account", type="primary"):
-    if nu_user and nu_pass:
-      st.session_state.store["user_db"][nu_user] = {
-          "pass": nu_pass,
-          "name": nu_name,
-          "role": nu_role,
-          "email": nu_email,
-      }
-      save_store()
-      st.success(f"User '{nu_user}' created successfully!")
-      st.rerun()
-    else:
-      st.error("Username and Password are required.")
-
-# LOG HISTORY TAB
 with tabs[3]:
-  st.subheader("📊 24/7 Google Sheets Logged History")
-  df_logs = pd.DataFrame(store["log_history"])
-  st.dataframe(df_logs, use_container_width=True)
-  csv_data = df_logs.to_csv(index=False).encode("utf-8")
-  st.download_button(
-      "📥 Download Log History (CSV)",
-      data=csv_data,
-      file_name="CCR_Oxygen_Logs.csv",
-      mime="text/csv",
-  )
+  st.subheader("📊 Log History")
+  if store["log_history"]:
+    df_logs = pd.DataFrame(store["log_history"])
+    st.dataframe(df_logs, use_container_width=True)
+  else:
+    st.info("No logs recorded yet.")
