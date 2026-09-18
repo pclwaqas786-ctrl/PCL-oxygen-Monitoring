@@ -108,13 +108,14 @@ bg_css = """
     </style>
     """
 if store.get("bg_image"):
-  bg_css = (
-      "<style>\n.stApp {\n        background: linear-gradient(rgba(15, 23, 42,"
-      " 0.85), rgba(15, 23, 42, 0.85)), url(\""
-      + store["bg_image"]
-      + '") no-repeat center center fixed;\n        background-size:'
-      " cover;\n    }\n    </style>"
-  )
+  bg_css = f"""
+    <style>
+    .stApp {{
+        background: linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.85)), url("{store['bg_image']}") no-repeat center center fixed;
+        background-size: cover;
+    }}
+    </style>
+    """
 
 st.markdown(bg_css, unsafe_allow_html=True)
 st.markdown(
@@ -230,6 +231,18 @@ st.markdown(
     font-size: 16px;
     display: inline-block;
 }
+.card-sub-desc {
+    color: #94a3b8;
+    font-size: 12px;
+    margin-top: 6px;
+    text-align: center;
+}
+.card-sub-desc-large {
+    color: #cbd5e1;
+    font-size: 16px;
+    margin-top: 10px;
+    text-align: center;
+}
 .card-timestamp {
     color: #94a3b8;
     font-size: 11px;
@@ -321,15 +334,14 @@ with st.sidebar.expander("⚙️ Admin Settings & Branding", expanded=False):
 head_col1, head_col2 = st.columns([1.2, 5.8])
 with head_col1:
   if store.get("logo_image"):
-    logo_html = (
-        '<div style="background-color: #0b1329; padding: 10px; border-radius:'
-        ' 12px; display: inline-block; border: 2px solid #38bdf8; text-align:'
-        ' center;">\n            <img src="'
-        + store["logo_image"]
-        + '" width="120" style="border-radius: 6px; display: block; margin: 0'
-        ' auto; object-fit: contain;">\n        </div>'
+    st.markdown(
+        f"""
+        <div style="background-color: #0b1329; padding: 10px; border-radius: 12px; display: inline-block; border: 2px solid #38bdf8; text-align: center;">
+            <img src="{store['logo_image']}" width="120" style="border-radius: 6px; display: block; margin: 0 auto; object-fit: contain;">
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    st.markdown(logo_html, unsafe_allow_html=True)
   else:
     st.markdown(
         """
@@ -344,20 +356,16 @@ with head_col1:
     )
 
 with head_col2:
-  title_html = (
-      "<h1 style='margin-bottom:0; font-weight:800; color:"
-      " white;'>"
-      + store["app_title"]
-      + "</h1>"
+  st.markdown(
+      f"<h1 style='margin-bottom:0; font-weight:800; color:"
+      f" white;'>{store['app_title']}</h1>",
+      unsafe_allow_html=True,
   )
-  st.markdown(title_html, unsafe_allow_html=True)
-  subtitle_html = (
+  st.markdown(
       "<p style='color: #cbd5e1; font-size: 16px;"
-      " margin-top:4px;'><em>"
-      + store["app_subtitle"]
-      + "</em></p>"
+      f" margin-top:4px;'><em>{store['app_subtitle']}</em></p>",
+      unsafe_allow_html=True,
   )
-  st.markdown(subtitle_html, unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -428,31 +436,21 @@ if selected_view == "Show All Cards":
       sub_desc = "Normal safe range."
 
     with col:
-      card_html = (
-          '<div class="main-card">\n                <div'
-          ' class="card-title">'
-          + str(pt["name"])
-          + "</div>\n                "
-          + coil_html
-          + '\n                <div class="'
-          + val_class
-          + '">'
-          + f"{val:.2f}"
-          + ' <span style="font-size:20px;">ppm</span></div>\n               '
-          ' <div style="text-align: center; margin-top: 10px;">\n             '
-          '       <span class="'
-          + badge_class
-          + '">● '
-          + status_label
-          + '</span>\n                    <div style="color: #94a3b8; font-size:'
-          " 12px; margin-top: 6px;\">"
-          + sub_desc
-          + "</div>\n                </div>\n                <div"
-          ' class="card-timestamp">🕒 Recorded At: '
-          + str(last_t)
-          + "</div>\n            </div>"
+      st.markdown(
+          f"""
+            <div class="main-card">
+                <div class="card-title">{pt['name']}</div>
+                {coil_html}
+                <div class="{val_class}">{val:.2f} <span style="font-size:20px;">ppm</span></div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <span class="{badge_class}">● {status_label}</span>
+                    <div class="card-sub-desc">{sub_desc}</div>
+                </div>
+                <div class="card-timestamp">🕒 Recorded At: {last_t}</div>
+            </div>
+            """,
+          unsafe_allow_html=True,
       )
-      st.markdown(card_html, unsafe_allow_html=True)
 else:
   focused_pt = next(
       (p for p in store["monitoring_points"] if p["name"] == selected_view), None
@@ -499,32 +497,21 @@ else:
       badge_class = "badge-safe-large"
       sub_desc = "Normal safe range."
 
-    focused_card_html = (
-        '<div class="main-card-large">\n            <div'
-        ' class="card-title-large">🔍 Focused View:'
-        + str(focused_pt["name"])
-        + "</div>\n            "
-        + coil_html_large
-        + '\n            <div class="'
-        + val_class
-        + '">'
-        + f"{val:.2f}"
-        + ' <span style="font-size:30px;">ppm</span></div>\n            <div'
-        ' style="text-align: center; margin-top: 20px;">\n                <span'
-        " class=\""
-        + badge_class
-        + '">● '
-        + status_label
-        + '</span>\n                <div style="color: #cbd5e1; font-size:'
-        " 16px; margin-top: 10px;\">"
-        + sub_desc
-        + "</div>\n            </div>\n            <div"
-        ' class="card-timestamp" style="font-size: 14px; margin-top:'
-        ' 20px;">🕒 Recorded At: '
-        + str(last_t)
-        + "</div>\n        </div>"
+    st.markdown(
+        f"""
+        <div class="main-card-large">
+            <div class="card-title-large">🔍 Focused View: {focused_pt['name']}</div>
+            {coil_html_large}
+            <div class="{val_class}">{val:.2f} <span style="font-size:30px;">ppm</span></div>
+            <div style="text-align: center; margin-top: 20px;">
+                <span class="{badge_class}">● {status_label}</span>
+                <div class="card-sub-desc-large">{sub_desc}</div>
+            </div>
+            <div class="card-timestamp" style="font-size: 14px; margin-top: 20px;">🕒 Recorded At: {last_t}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    st.markdown(focused_card_html, unsafe_allow_html=True)
 
 for pt in store["monitoring_points"]:
   val = pt["val"]
@@ -537,13 +524,10 @@ if any_high_alert:
   alert_msg = (
       " | ".join(alert_details) if alert_details else "Critical limit exceeded!"
   )
-  alarm_html = (
-      """
+  alarm_html = f"""
     <div style="font-family: sans-serif; background-color: #8b0000; color: white; padding: 18px; border-radius: 12px; text-align: center; border: 3px solid #ff4b4b; box-shadow: 0 6px 16px rgba(0,0,0,0.4); margin-top: 10px; margin-bottom: 20px;">
         <h2 style="margin: 0 0 8px 0; color: #ffffff; font-size: 24px;">🚨 EXTREME CRITICAL HIGH ALERT!</h2>
-        <p style="font-size: 15px; margin: 0 0 14px 0; color: #ffcccc;">"""
-      + alert_msg
-      + """</p>
+        <p style="font-size: 15px; margin: 0 0 14px 0; color: #ffcccc;">{alert_msg}</p>
         <button id="alarmBtn" onclick="toggleSiren()" style="background-color: #ff4b4b; color: white; border: 2px solid #ffffff; padding: 14px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
             🔔 START LOUD ALARM SOUND 🔊
         </button>
@@ -554,33 +538,33 @@ if any_high_alert:
     var sirenInterval = null;
     var isPlaying = false;
 
-    function toggleSiren() {
+    function toggleSiren() {{
         var btn = document.getElementById("alarmBtn");
-        if (isPlaying) {
+        if (isPlaying) {{
             if (sirenInterval) clearInterval(sirenInterval);
             sirenInterval = null;
             isPlaying = false;
-            if (btn) {
+            if (btn) {{
                 btn.innerText = "🔔 START LOUD ALARM SOUND 🔊";
                 btn.style.backgroundColor = "#ff4b4b";
-            }
+            }}
             return;
-        }
+        }}
 
         isPlaying = true;
-        if (btn) {
+        if (btn) {{
             btn.innerText = "🚨 LOUD ALARM RINGING (CLICK TO MUTE) 🔊";
             btn.style.backgroundColor = "#cc0000";
-        }
+        }}
 
-        try {
+        try {{
             var AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-            if (!audioCtx) { audioCtx = new AudioCtxClass(); }
-            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+            if (!audioCtx) {{ audioCtx = new AudioCtxClass(); }}
+            if (audioCtx.state === 'suspended') {{ audioCtx.resume(); }}
             var flip = false;
-            function playSirenTone() {
+            function playSirenTone() {{
                 if (!isPlaying) return;
-                try {
+                try {{
                     var osc = audioCtx.createOscillator();
                     var gain = audioCtx.createGain();
                     osc.type = 'sawtooth';
@@ -593,15 +577,14 @@ if any_high_alert:
                     gain.connect(audioCtx.destination);
                     osc.start();
                     osc.stop(audioCtx.currentTime + 0.4);
-                } catch(e) {}
-            }
+                }} catch(e) {{}}
+            }}
             playSirenTone();
             sirenInterval = setInterval(playSirenTone, 400);
-        } catch(err) {}
-    }
+        }} catch(err) {{}}
+    }}
     </script>
     """
-  )
   components.html(alarm_html, height=190)
 
 st.markdown(
