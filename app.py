@@ -31,7 +31,7 @@ default_store = {
     "selected_alarm_sound": "Loud Industrial Siren",
     "user_db": {
         "admin": {
-            "pass": "admin123",
+            "pass": "admin123@",
             "name": "Admin Manager",
             "role": "admin",
             "email": "admin@pcable.com",
