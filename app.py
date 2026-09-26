@@ -274,34 +274,6 @@ if is_admin:
             st.success("Settings updated!")
             st.rerun()
 
-# Header Section
-head_col1, head_col2 = st.columns([1, 6])
-with head_col1:
-    if store.get("logo_image"):
-        st.image(store["logo_image"], width=80)
-    elif PCL_LOGO_B64:
-        st.markdown(
-            f"""<img src="data:image/png;base64,{PCL_LOGO_B64}" style="width:78px;height:78px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));">""",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            """<div style="background: #1f2937; width: 70px; height: 70px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #38bdf8;"><span style="color: #10b981; font-size: 18px; font-weight: bold;">PCL</span></div>""",
-            unsafe_allow_html=True,
-        )
-
-with head_col2:
-    st.markdown(
-        f"<h2 style='margin:0;'>{store['app_title']}</h2>", unsafe_allow_html=True
-    )
-    st.markdown(
-        f"<p style='color: #c7d2e4; font-size: 13px;'><em>{store['app_subtitle']}</em></p>",
-        unsafe_allow_html=True,
-    )
-
-st.markdown("---")
-
-# JavaScript Audio Generators
 sound_type = store.get("selected_alarm_sound", "Jail Siren (Wail)")
 sound_scripts = {
     "Loud Industrial Siren": """
@@ -377,6 +349,7 @@ current_js = sound_scripts.get(
     sound_type, sound_scripts["Jail Siren (Wail)"]
 )
 
+
 # Checking Alarm Logic
 play_audio = False
 critical_stations = []
@@ -392,24 +365,15 @@ for pt in store["monitoring_points"]:
         if not st.session_state.muted_stations.get(s_name, False):
             play_audio = True
 
-if play_audio:
-    if not st.session_state.get("fs_station"):
-        st.error(
-            f"🚨 CRITICAL ALARM ACTIVE ({sound_type}): {', '.join(critical_stations)} limits exceeded!"
-        )
-    alarm_script = f"""
-    <script>
-    var ctx = new (window.AudioContext || window.webkitAudioContext)();
-    function playAlarm() {{
-        {current_js}
-    }}
-    var intervalId = setInterval(playAlarm, 700);
-    </script>
-    """
-    st.components.v1.html(alarm_script, height=0, width=0)
 
 # Fullscreen station display - giant readout for control-room screens
 if st.session_state.get("fs_station"):
+    if play_audio:
+        st.components.v1.html(
+            f"<script>var ctx = new (window.AudioContext || window.webkitAudioContext)(); function playAlarm(){{{current_js}}} var intervalId = setInterval(playAlarm, 700);</script>",
+            height=0,
+            width=0,
+        )
     fs_name = st.session_state.fs_station
     fs_pt = next(
         (p for p in store["monitoring_points"] if p["name"] == fs_name), None
@@ -473,6 +437,51 @@ if st.session_state.get("fs_station"):
                 st.session_state.pop("fs_station", None)
                 st.rerun()
         st.stop()
+
+
+# Header Section
+head_col1, head_col2 = st.columns([1, 6])
+with head_col1:
+    if store.get("logo_image"):
+        st.image(store["logo_image"], width=80)
+    elif PCL_LOGO_B64:
+        st.markdown(
+            f"""<img src="data:image/png;base64,{PCL_LOGO_B64}" style="width:78px;height:78px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));">""",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """<div style="background: #1f2937; width: 70px; height: 70px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #38bdf8;"><span style="color: #10b981; font-size: 18px; font-weight: bold;">PCL</span></div>""",
+            unsafe_allow_html=True,
+        )
+
+with head_col2:
+    st.markdown(
+        f"<h2 style='margin:0;'>{store['app_title']}</h2>", unsafe_allow_html=True
+    )
+    st.markdown(
+        f"<p style='color: #c7d2e4; font-size: 13px;'><em>{store['app_subtitle']}</em></p>",
+        unsafe_allow_html=True,
+    )
+
+st.markdown("---")
+
+# JavaScript Audio Generators
+if play_audio:
+    if not st.session_state.get("fs_station"):
+        st.error(
+            f"🚨 CRITICAL ALARM ACTIVE ({sound_type}): {', '.join(critical_stations)} limits exceeded!"
+        )
+    alarm_script = f"""
+    <script>
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    function playAlarm() {{
+        {current_js}
+    }}
+    var intervalId = setInterval(playAlarm, 700);
+    </script>
+    """
+    st.components.v1.html(alarm_script, height=0, width=0)
 
 st.markdown("### Select Monitoring Station (Full Display View)")
 
