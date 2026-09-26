@@ -17,6 +17,18 @@ st.set_page_config(
 DATA_FILE = "store_data.json"
 
 
+def _load_logo_b64():
+    try:
+        _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "pcl-logo.png")
+        with open(_p, "rb") as _f:
+            return base64.b64encode(_f.read()).decode("ascii")
+    except Exception:
+        return ""
+
+
+PCL_LOGO_B64 = _load_logo_b64()
+
+
 def get_pkt_time():
     """Returns current accurate Pakistan Standard Time (UTC+5)"""
     pkt_zone = timezone(timedelta(hours=5))
@@ -161,19 +173,34 @@ if "muted_stations" not in st.session_state:
 st.markdown(
     """
 <style>
-.stApp { background-color: #0b0f19; color: white; }
+.stApp {
+    background: radial-gradient(1200px 600px at 20% -5%, #16233d 0%, #0d1526 55%, #090e1a 100%);
+    color: #f2f6fc;
+}
 div[data-baseweb="tab-list"] { gap: 8px; }
 button[data-baseweb="tab"] {
-    background-color: #1f2937;
-    color: white;
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-weight: bold;
+    background-color: #22314d;
+    color: #dbe6f7 !important;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-weight: 700;
+    border: 1px solid #3b5178;
 }
-button[aria-selected="true"] {
-    background-color: #2563eb !important;
-    color: white !important;
+button[data-baseweb="tab"]:hover {
+    background-color: #2c3f63;
+    color: #ffffff !important;
 }
+button[data-baseweb="tab"][aria-selected="true"] {
+    background-color: #1d6ff2 !important;
+    color: #ffffff !important;
+    border-color: #7fb2ff;
+    box-shadow: 0 0 12px rgba(59,130,246,.55);
+}
+.stSelectbox label, .stNumberInput label, .stTextInput label, .stRadio label {
+    color: #e8eefb !important;
+    font-weight: 600;
+}
+section[data-testid="stSidebar"] { background-color: #0d1626; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -210,6 +237,7 @@ st.sidebar.success(
 if st.sidebar.button("🚪 Logout", type="secondary"):
     st.session_state.logged_in = False
     st.session_state.username = ""
+    st.session_state.pop("fs_station", None)
     st.rerun()
 
 st.session_state.duty_shift = st.sidebar.selectbox(
@@ -239,6 +267,11 @@ head_col1, head_col2 = st.columns([1, 6])
 with head_col1:
     if store.get("logo_image"):
         st.image(store["logo_image"], width=80)
+    elif PCL_LOGO_B64:
+        st.markdown(
+            f"""<img src="data:image/png;base64,{PCL_LOGO_B64}" style="width:78px;height:78px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));">""",
+            unsafe_allow_html=True,
+        )
     else:
         st.markdown(
             """<div style="background: #1f2937; width: 70px; height: 70px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #38bdf8;"><span style="color: #10b981; font-size: 18px; font-weight: bold;">PCL</span></div>""",
@@ -250,7 +283,7 @@ with head_col2:
         f"<h2 style='margin:0;'>{store['app_title']}</h2>", unsafe_allow_html=True
     )
     st.markdown(
-        f"<p style='color: #9ca3af; font-size: 13px;'><em>{store['app_subtitle']}</em></p>",
+        f"<p style='color: #c7d2e4; font-size: 13px;'><em>{store['app_subtitle']}</em></p>",
         unsafe_allow_html=True,
     )
 
@@ -348,9 +381,10 @@ for pt in store["monitoring_points"]:
             play_audio = True
 
 if play_audio:
-    st.error(
-        f"🚨 CRITICAL ALARM ACTIVE ({sound_type}): {', '.join(critical_stations)} limits exceeded!"
-    )
+    if not st.session_state.get("fs_station"):
+        st.error(
+            f"🚨 CRITICAL ALARM ACTIVE ({sound_type}): {', '.join(critical_stations)} limits exceeded!"
+        )
     alarm_script = f"""
     <script>
     var ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -362,7 +396,70 @@ if play_audio:
     """
     st.components.v1.html(alarm_script, height=0, width=0)
 
-st.markdown("### 🖥️ Select Monitoring Station (Full Display View)")
+# Fullscreen station display - giant readout for control-room screens
+if st.session_state.get("fs_station"):
+    fs_name = st.session_state.fs_station
+    fs_pt = next(
+        (p for p in store["monitoring_points"] if p["name"] == fs_name), None
+    )
+    if fs_pt is None:
+        st.session_state.pop("fs_station", None)
+        st.rerun()
+    else:
+        fs_val = fs_pt["val"]
+        fs_min = fs_pt.get("min_limit", 100.0)
+        fs_max = fs_pt.get("max_limit", 350.0)
+        fs_crit = fs_val < fs_min or fs_val > fs_max
+        fs_color = "#ef4444" if fs_crit else "#22c55e"
+        fs_bg = "#26090d" if fs_crit else "#03130d"
+        fs_status = (
+            f"CRITICAL - out of bounds ({fs_min} - {fs_max} PPM)"
+            if fs_crit
+            else f"SAFE ZONE - Normal limits ({fs_min} - {fs_max} PPM)"
+        )
+        fs_coil = ""
+        if "ROD" in fs_name.upper() and (
+            fs_pt.get("coil_prefix") or fs_pt.get("coil_num")
+        ):
+            fs_coil = f"<div style='font-size:32px;color:#7dd3fc;font-weight:700;margin-bottom:8px;'>Coil: {fs_pt.get('coil_prefix','')}-{fs_pt.get('coil_num','')}</div>"
+        st.markdown(
+            """<style>
+            section[data-testid="stSidebar"]{display:none !important;}
+            header[data-testid="stHeader"]{display:none !important;}
+            div[data-testid="stToolbar"]{display:none !important;}
+            </style>""",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"""
+            <div style="min-height:82vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+                        background:{fs_bg};border:6px solid {fs_color};border-radius:24px;margin:6px;padding:20px 12px;text-align:center;">
+                <div style="font-size:44px;font-weight:800;color:#ffffff;margin-bottom:4px;">{fs_name}</div>
+                {fs_coil}
+                <div style="font-size:21vw;line-height:1.05;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>
+                <div style="font-size:52px;color:{fs_color};font-weight:800;">PPM</div>
+                <div style="font-size:24px;color:#e5e7eb;margin-top:10px;">{fs_status}</div>
+                <div style="font-size:18px;color:#9ca3af;margin-top:6px;">Last Updated: {fs_pt.get('last_updated', get_pkt_time())} (PKT)</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        fs_b1, fs_b2 = st.columns(2)
+        with fs_b1:
+            if st.button("Refresh", key="fs_refresh", use_container_width=True):
+                st.rerun()
+        with fs_b2:
+            if st.button(
+                "X Exit Full Screen",
+                key="fs_exit",
+                use_container_width=True,
+                type="primary",
+            ):
+                st.session_state.pop("fs_station", None)
+                st.rerun()
+        st.stop()
+
+st.markdown("### Select Monitoring Station (Full Display View)")
 
 # Tabs Selection for Station Display
 station_names = [pt["name"] for pt in store["monitoring_points"]]
@@ -400,7 +497,7 @@ for idx, tab in enumerate(station_tabs):
 
         val_color = "#ef4444" if is_critical else "#10b981"
         st.markdown(
-            f"<h1 style='text-align: center; color: {val_color}; font-size: 80px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 30px;'>PPM</span></h1>",
+            f"<h1 style='text-align: center; color: {val_color}; font-size: 112px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 42px;'>PPM</span></h1>",
             unsafe_allow_html=True,
         )
 
@@ -412,6 +509,14 @@ for idx, tab in enumerate(station_tabs):
             st.success(f"🟢 SAFE ZONE — Normal limits ({min_l} - {max_l} PPM)")
 
         st.caption(f"🕒 Last Updated: {last_t} (PKT)")
+
+        if st.button(
+            f"⛶ Full Screen ({s_name})",
+            key=f"fs_open_{idx}",
+            use_container_width=True,
+        ):
+            st.session_state.fs_station = s_name
+            st.rerun()
 
         if is_critical:
             is_muted = st.session_state.muted_stations.get(s_name, False)
