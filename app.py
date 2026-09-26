@@ -28,7 +28,7 @@ default_store = {
     "app_subtitle": "Real-time oxygen tracking system with individual item thresholds and 24/7 Google Sheets logging.",
     "logo_image": "",
     "google_sheet_url": "https://docs.google.com/spreadsheets/d/your-sheet-id-here/edit",
-    "selected_alarm_sound": "Loud Industrial Siren",
+    "selected_alarm_sound": "Jail Siren (Wail)",
     "user_db": {
         "admin": {
             "pass": "admin123@",
@@ -48,7 +48,7 @@ default_store = {
             "name": "ROD",
             "coil_prefix": "CR",
             "coil_num": "9653",
-            "val": 556.0,
+            "val": 220.0,
             "min_limit": 100.0,
             "max_limit": 350.0,
             "last_updated": get_pkt_time(),
@@ -66,7 +66,7 @@ default_store = {
             "name": "Shaft Furnace(SF)",
             "coil_prefix": "",
             "coil_num": "",
-            "val": 0.0,
+            "val": 320.0,
             "min_limit": 100.0,
             "max_limit": 650.0,
             "last_updated": get_pkt_time(),
@@ -106,13 +106,34 @@ def save_store():
 
 
 def save_to_google_sheet(log_data, sheet_url):
-    if not sheet_url or "your-sheet-id-here" in sheet_url:
+    """Sends one log row to the Google Apps Script Web App webhook.
+
+    sheet_url must be the Web App /exec URL from Apps Script
+    (see apps-script/Code.gs). Returns True on success, False otherwise.
+    Never raises - a failed save must not break the reading submit flow.
+    """
+    if not sheet_url:
+        return False
+    if "your-sheet-id-here" in sheet_url:
+        return False
+    if "script.google.com/macros" not in sheet_url:
+        # Not an Apps Script webhook URL - a plain Google Sheets share
+        # link cannot receive POSTs, so skip instead of failing silently.
         return False
     try:
-        requests.post(sheet_url, json={"data": log_data}, timeout=5)
-        return True
+        r = requests.post(sheet_url, json={"data": log_data}, timeout=8)
+        return r.ok
     except Exception:
         return False
+
+
+def sheets_autosave_on(sheet_url):
+    """True when a valid Apps Script webhook URL is configured."""
+    return bool(
+        sheet_url
+        and "your-sheet-id-here" not in sheet_url
+        and "script.google.com/macros" in sheet_url
+    )
 
 
 if "logged_in" not in st.session_state:
@@ -189,7 +210,9 @@ if is_admin:
         new_title = st.text_input("Main Title", value=store["app_title"])
         new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
         new_sheet_url = st.text_input(
-            "Google Sheet Webhook URL", value=store.get("google_sheet_url", "")
+            "Google Sheet Webhook URL",
+            value=store.get("google_sheet_url", ""),
+            help="Apps Script Web App /exec URL (script.google.com/macros/...) - NOT the normal Sheets share link. Setup steps: README.md",
         )
         if st.button("Save System Settings"):
             store["app_title"] = new_title
@@ -222,7 +245,7 @@ with head_col2:
 st.markdown("---")
 
 # JavaScript Audio Generators
-sound_type = store.get("selected_alarm_sound", "Loud Industrial Siren")
+sound_type = store.get("selected_alarm_sound", "Jail Siren (Wail)")
 sound_scripts = {
     "Loud Industrial Siren": """
         var osc = ctx.createOscillator();
@@ -271,9 +294,30 @@ sound_scripts = {
         osc.start();
         osc.stop(ctx.currentTime + 0.7);
     """,
+    "Jail Siren (Wail)": """
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        var lfo = ctx.createOscillator();
+        var lfoGain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(0.45, ctx.currentTime);
+        lfoGain.gain.setValueAtTime(350, ctx.currentTime);
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        gain.gain.setValueAtTime(0.7, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        lfo.start();
+        var stopTime = ctx.currentTime + 2.2;
+        osc.stop(stopTime);
+        lfo.stop(stopTime);
+    """,
 }
 current_js = sound_scripts.get(
-    sound_type, sound_scripts["Loud Industrial Siren"]
+    sound_type, sound_scripts["Jail Siren (Wail)"]
 )
 
 # Checking Alarm Logic
@@ -304,7 +348,7 @@ if play_audio:
     var intervalId = setInterval(playAlarm, 700);
     </script>
     """
-    st.components.v1.html(alarm_script, height=0, width=0)
+    st.components.v1.html(alarm_script, height=0, width=0, key="pcl_alarm_audio")
 
 st.markdown("### 🖥️ Select Monitoring Station (Full Display View)")
 
@@ -465,6 +509,11 @@ with tabs_op[0]:
 with tabs_op[1]:
     st.subheader("📊 Log History & Saved Records")
 
+    if sheets_autosave_on(store.get("google_sheet_url", "")):
+        st.caption("🟢 Google Sheets auto-save: ON")
+    else:
+        st.caption("⚪ Google Sheets auto-save: OFF (webhook URL not configured - see README.md)")
+
     if store["log_history"]:
         df_logs = pd.DataFrame(store["log_history"])
         st.dataframe(df_logs, use_container_width=True)
@@ -486,7 +535,7 @@ if is_admin:
         st.subheader("🔊 Select Loud Alarm Sound")
         sound_options = list(sound_scripts.keys())
         current_selected = store.get(
-            "selected_alarm_sound", "Loud Industrial Siren"
+            "selected_alarm_sound", "Jail Siren (Wail)"
         )
 
         chosen_sound = st.radio(
