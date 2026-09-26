@@ -516,7 +516,7 @@ for idx, tab in enumerate(station_tabs):
             pt.get("coil_prefix") or pt.get("coil_num")
         ):
             st.markdown(
-                f"<h3 style='text-align: center; color: #38bdf8; margin: 0;'>📦 Coil: {pt.get('coil_prefix', '')}-{pt.get('coil_num', '')}</h3>",
+                f"<div style='text-align: center; color: #38bdf8; font-size: 30px; font-weight: 700; margin: 2px 0;'>📦 Coil: {pt.get('coil_prefix', '')}-{pt.get('coil_num', '')}</div>",
                 unsafe_allow_html=True,
             )
 
