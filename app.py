@@ -178,23 +178,35 @@ st.markdown(
     color: #f2f6fc;
 }
 div[data-baseweb="tab-list"] { gap: 8px; }
-button[data-baseweb="tab"] {
-    background-color: #22314d;
+button[data-baseweb="tab"], [data-testid="stTab"] {
+    background-color: #22314d !important;
     color: #dbe6f7 !important;
     border-radius: 10px;
     padding: 10px 18px;
     font-weight: 700;
     border: 1px solid #3b5178;
 }
-button[data-baseweb="tab"]:hover {
-    background-color: #2c3f63;
+button[data-baseweb="tab"]:hover, [data-testid="stTab"]:hover {
+    background-color: #2c3f63 !important;
     color: #ffffff !important;
 }
-button[data-baseweb="tab"][aria-selected="true"] {
+button[data-baseweb="tab"][aria-selected="true"], [data-testid="stTab"][aria-selected="true"] {
     background-color: #1d6ff2 !important;
     color: #ffffff !important;
     border-color: #7fb2ff;
     box-shadow: 0 0 12px rgba(59,130,246,.55);
+}
+/* secondary buttons (Full Screen / Refresh): dark pill, white text */
+[data-testid="stBaseButton-secondary"] {
+    background-color: #22314d !important;
+    color: #ffffff !important;
+    border: 1px solid #3b5178 !important;
+    font-weight: 700;
+}
+[data-testid="stBaseButton-secondary"]:hover {
+    background-color: #2c3f63 !important;
+    color: #ffffff !important;
+    border-color: #7fb2ff !important;
 }
 .stSelectbox label, .stNumberInput label, .stTextInput label, .stRadio label {
     color: #e8eefb !important;
@@ -426,6 +438,9 @@ if st.session_state.get("fs_station"):
             """<style>
             section[data-testid="stSidebar"]{display:none !important;}
             header[data-testid="stHeader"]{display:none !important;}
+            header{display:none !important;}
+            [data-testid="stHeader"]{display:none !important;}
+            [data-testid="stToolbar"]{display:none !important;}
             div[data-testid="stToolbar"]{display:none !important;}
             </style>""",
             unsafe_allow_html=True,
