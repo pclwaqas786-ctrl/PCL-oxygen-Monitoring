@@ -133,8 +133,20 @@ def save_to_google_sheet(log_data, sheet_url):
         # link cannot receive POSTs, so skip instead of failing silently.
         return False
     try:
-        r = requests.post(sheet_url, json={"data": log_data}, timeout=8)
-        return r.ok
+        # Google answers the POST to /exec with a 302 redirect to
+        # script.googleusercontent.com. Following it the default way turns
+        # the POST into a GET, so doPost never receives the payload
+        # (verified 26 Sep 2026). Working pattern: POST with
+        # allow_redirects=False, then GET the redirect Location with the
+        # same session - Google replays the original POST there and doPost
+        # executes (verified: body returns {"ok":true}).
+        sess = requests.Session()
+        r1 = sess.post(sheet_url, json={"data": log_data}, timeout=10,
+                       allow_redirects=False)
+        if r1.is_redirect and r1.headers.get("Location"):
+            r2 = sess.get(r1.headers["Location"], timeout=20)
+            return r2.ok and '"ok":true' in r2.text.replace(" ", "")
+        return r1.ok and '"ok":true' in r1.text.replace(" ", "")
     except Exception:
         return False
 
@@ -586,6 +598,9 @@ tabs_op = st.tabs(op_tabs_list)
 # Tab 1: Update Readings (Both Admin and Operator)
 with tabs_op[0]:
     st.subheader("Update Live Sensor Reading & Coil Information")
+    _saved_msg = st.session_state.pop("reading_saved_msg", None)
+    if _saved_msg:
+        st.success(_saved_msg)
     selected_edit_idx = st.selectbox(
         "Select Monitoring Point",
         options=range(len(station_names)),
@@ -646,9 +661,15 @@ with tabs_op[0]:
         store["log_history"].append(new_log)
         save_store()
 
-        save_to_google_sheet(new_log, store.get("google_sheet_url", ""))
+        sheets_ok = save_to_google_sheet(new_log, store.get("google_sheet_url", ""))
 
-        st.success(f"Reading updated successfully at {now_str} (PKT)!")
+        # NOTE: st.success must NOT be called right before st.rerun() -
+        # the rerun discards it, so the user never sees the confirmation.
+        # Store it in session state and show it after the rerun instead.
+        msg = f"Reading updated successfully at {now_str} (PKT)!"
+        if sheets_autosave_on(store.get("google_sheet_url", "")) and not sheets_ok:
+            msg += " (Note: Google Sheets save failed - saved locally only.)"
+        st.session_state["reading_saved_msg"] = msg
         st.rerun()
 
 # Tab 2: Log History (Both Admin and Operator)
