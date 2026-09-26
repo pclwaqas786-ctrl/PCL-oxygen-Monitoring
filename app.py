@@ -29,6 +29,7 @@ default_store = {
     "logo_image": "",
     "google_sheet_url": "https://docs.google.com/spreadsheets/d/your-sheet-id-here/edit",
     "selected_alarm_sound": "Jail Siren (Wail)",
+    "schema_version": 2,
     "user_db": {
         "admin": {
             "pass": "admin123@",
@@ -96,7 +97,6 @@ if "store" not in st.session_state:
 
 store = st.session_state.store
 
-
 def save_store():
     try:
         with open(DATA_FILE, "w") as f:
@@ -135,6 +135,18 @@ def sheets_autosave_on(sheet_url):
         and "script.google.com/macros" in sheet_url
     )
 
+
+# One-time migration (v2): green default readings + Jail Siren default sound.
+# The server's store_data.json survives redeploys, so without this the old
+# values (ROD 556, SF 0.0) and old sound would persist after the update.
+if store.get("schema_version", 1) < 2:
+    _v2_defaults = [220.0, 185.97, 320.0, 150.0]
+    for _pt, _v in zip(store.get("monitoring_points", []), _v2_defaults):
+        _pt["val"] = _v
+        _pt["last_updated"] = get_pkt_time()
+    store["selected_alarm_sound"] = "Jail Siren (Wail)"
+    store["schema_version"] = 2
+    save_store()
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -348,7 +360,7 @@ if play_audio:
     var intervalId = setInterval(playAlarm, 700);
     </script>
     """
-    st.components.v1.html(alarm_script, height=0, width=0, key="pcl_alarm_audio")
+    st.components.v1.html(alarm_script, height=0, width=0)
 
 st.markdown("### 🖥️ Select Monitoring Station (Full Display View)")
 
