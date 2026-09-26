@@ -184,6 +184,7 @@ button[data-baseweb="tab"], [data-testid="stTab"] {
     border-radius: 10px;
     padding: 10px 18px;
     font-weight: 700;
+    font-size: 17px !important;
     border: 1px solid #3b5178;
 }
 button[data-baseweb="tab"]:hover, [data-testid="stTab"]:hover {
@@ -520,6 +521,10 @@ for idx, tab in enumerate(station_tabs):
             )
 
         val_color = "#ef4444" if is_critical else "#10b981"
+        st.markdown(
+            f"<h2 style='text-align: center; color: #ffffff; font-size: 46px; margin: 2px 0 0 0; font-weight: 800;'>{s_name}</h2>",
+            unsafe_allow_html=True,
+        )
         st.markdown(
             f"<h1 style='text-align: center; color: {val_color}; font-size: 112px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 42px;'>PPM</span></h1>",
             unsafe_allow_html=True,
