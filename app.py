@@ -410,20 +410,20 @@ if st.session_state.get("fs_station"):
             </style>""",
             unsafe_allow_html=True,
         )
-        st.markdown(
-            f"""
-            <div style="min-height:82vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-                        background:{fs_bg};border:6px solid {fs_color};border-radius:24px;margin:6px;padding:20px 12px;text-align:center;">
-                <div style="font-size:44px;font-weight:800;color:#ffffff;margin-bottom:4px;">{fs_name}</div>
-                {fs_coil}
-                <div style="font-size:21vw;line-height:1.05;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>
-                <div style="font-size:52px;color:{fs_color};font-weight:800;">PPM</div>
-                <div style="font-size:24px;color:#e5e7eb;margin-top:10px;">{fs_status}</div>
-                <div style="font-size:18px;color:#9ca3af;margin-top:6px;">Last Updated: {fs_pt.get('last_updated', get_pkt_time())} (PKT)</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        # NOTE: single-line HTML (no blank lines / indentation) so the markdown
+        # renderer never treats the value divs as a code block when fs_coil is empty.
+        fs_html = (
+            '<div style="min-height:82vh;display:flex;flex-direction:column;align-items:center;justify-content:center;'
+            f'background:{fs_bg};border:6px solid {fs_color};border-radius:24px;margin:6px;padding:20px 12px;text-align:center;">'
+            f'<div style="font-size:44px;font-weight:800;color:#ffffff;margin-bottom:4px;">{fs_name}</div>'
+            f"{fs_coil}"
+            f'<div style="font-size:21vw;line-height:1.05;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>'
+            f'<div style="font-size:52px;color:{fs_color};font-weight:800;">PPM</div>'
+            f'<div style="font-size:24px;color:#e5e7eb;margin-top:10px;">{fs_status}</div>'
+            f'<div style="font-size:18px;color:#9ca3af;margin-top:6px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())} (PKT)</div>'
+            "</div>"
         )
+        st.markdown(fs_html, unsafe_allow_html=True)
         fs_b1, fs_b2 = st.columns(2)
         with fs_b1:
             if st.button("Refresh", key="fs_refresh", use_container_width=True):
