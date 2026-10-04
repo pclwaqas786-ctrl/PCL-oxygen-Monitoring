@@ -32,7 +32,7 @@ PCL_LOGO_B64 = _load_logo_b64()
 def get_pkt_time():
     """Returns current Pakistan time (UTC+5) in short display format."""
     pkt_zone = timezone(timedelta(hours=5))
-    return datetime.now(pkt_zone).strftime("%d-%m %I:%M %p")
+    return datetime.now(pkt_zone).strftime("%d-%m %H:%M")
 
 
 default_store = {
@@ -478,8 +478,8 @@ for pt in store["monitoring_points"]:
 
 
 # Fullscreen station display - control-room wall: one big station plus
-# the other three as small cards (tap a card to switch). Compact enough
-# to fit one screen without scrolling.
+# the other three as small cards (tap a card to switch). Giant fonts for
+# the 40-inch LED (readable from ~30 feet). Fits one screen, no scrolling.
 if st.session_state.get("fs_station"):
     if play_audio:
         st.components.v1.html(
@@ -496,6 +496,9 @@ if st.session_state.get("fs_station"):
         [data-testid="stToolbar"]{display:none !important;}
         div[data-testid="stToolbar"]{display:none !important;}
         section.main{padding-top:6px !important;}
+        [data-testid="stBaseButton-secondary"], [data-testid="stBaseButton-primary"]{
+            font-size:22px !important;font-weight:800 !important;padding:12px 6px !important;
+        }
         </style>""",
         unsafe_allow_html=True,
     )
@@ -519,26 +522,30 @@ if st.session_state.get("fs_station"):
             fs_color = _fc
         else:
             fs_status = (
-                f"CRITICAL - out of bounds ({fs_min:g} - {fs_max:g} PPM)"
+                f"CRITICAL - out of bounds ({fs_min:g} - {fs_max:g} ppm)"
                 if fs_crit
-                else f"SAFE ZONE - Normal limits ({fs_min:g} - {fs_max:g} PPM)"
+                else f"SAFE ZONE - Normal limits ({fs_min:g} - {fs_max:g} ppm)"
             )
         fs_coil = ""
         _pfx, _num = fs_pt.get("coil_prefix", ""), fs_pt.get("coil_num", "")
         if _pfx or _num:
             _coil_txt = f"{_pfx}-{_num}" if _num else f"{_pfx}- ___"
-            fs_coil = f"<div style='font-size:26px;color:#7dd3fc;font-weight:700;margin-bottom:6px;'>Coil: {_coil_txt}</div>"
+            fs_coil = f"<div style='font-size:40px;color:#7dd3fc;font-weight:700;margin-bottom:6px;'>Coil: {_coil_txt}</div>"
+        fs_logo = ""
+        if PCL_LOGO_B64:
+            fs_logo = f"<img src='data:image/png;base64,{PCL_LOGO_B64}' style='height:64px;object-fit:contain;margin-bottom:2px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));'>"
         # NOTE: single-line HTML (no blank lines / indentation) so the markdown
         # renderer never treats the value divs as a code block.
         fs_html = (
             '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
             f'background:{fs_bg};border:5px solid {fs_color};border-radius:20px;margin:4px;padding:10px 8px;text-align:center;">'
-            f'<div style="font-size:34px;font-weight:800;color:#ffffff;margin-bottom:2px;">{fs_name}</div>'
+            f"{fs_logo}"
+            f'<div style="font-size:56px;font-weight:800;color:#ffffff;margin-bottom:2px;">{fs_name}</div>'
             f"{fs_coil}"
-            f'<div style="font-size:13vw;line-height:1;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>'
-            f'<div style="font-size:36px;color:{fs_color};font-weight:800;">PPM</div>'
-            f'<div style="font-size:19px;color:#e5e7eb;margin-top:6px;">{fs_status}</div>'
-            f'<div style="font-size:14px;color:#9ca3af;margin-top:4px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
+            f'<div style="font-size:20vw;line-height:1;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>'
+            f'<div style="font-size:60px;color:{fs_color};font-weight:800;">ppm</div>'
+            f'<div style="font-size:30px;color:#e5e7eb;margin-top:6px;">{fs_status}</div>'
+            f'<div style="font-size:20px;color:#9ca3af;margin-top:4px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
             "</div>"
         )
         st.markdown(fs_html, unsafe_allow_html=True)
@@ -556,13 +563,13 @@ if st.session_state.get("fs_station"):
                 _pp, _nn = _op.get("coil_prefix", ""), _op.get("coil_num", "")
                 _coiltxt = ""
                 if _pp or _nn:
-                    _coiltxt = f"<div style='font-size:12px;color:#7dd3fc;font-weight:700;'>{_pp}-{_nn if _nn else '___'}</div>"
+                    _coiltxt = f"<div style='font-size:16px;color:#7dd3fc;font-weight:700;'>{_pp}-{_nn if _nn else '___'}</div>"
                 st.markdown(
                     "<div style='background:" + _obg + ";border:2px solid " + _ocol + ";border-radius:12px;padding:8px 4px;text-align:center;'>"
-                    + "<div style='font-size:15px;font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
+                    + "<div style='font-size:22px;font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
                     + _coiltxt
-                    + "<div style='font-size:30px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.2f}" + "</div>"
-                    + "<div style='font-size:12px;color:" + _ocol + ";font-weight:700;'>PPM</div></div>",
+                    + "<div style='font-size:44px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.2f}" + "</div>"
+                    + "<div style='font-size:16px;color:" + _ocol + ";font-weight:700;'>ppm</div></div>",
                     unsafe_allow_html=True,
                 )
                 if st.button(f"⛶ {_op['name']}", key=f"fs_sw_{_op['name']}", use_container_width=True):
@@ -677,19 +684,19 @@ for idx, tab in enumerate(station_tabs):
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<h1 style='text-align: center; color: {val_color}; font-size: 128px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 48px;'>PPM</span></h1>",
+            f"<h1 style='text-align: center; color: {val_color}; font-size: 128px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 48px;'>ppm</span></h1>",
             unsafe_allow_html=True,
         )
 
         if is_critical:
             st.error(
-                f"🚨 CRITICAL ALERT — Value out of safe bounds ({min_l:g} - {max_l:g} PPM)"
+                f"🚨 CRITICAL ALERT — Value out of safe bounds ({min_l:g} - {max_l:g} ppm)"
             )
         elif _grade_label:
             st.success(_grade_label)
             st.caption("🟢 100–250 Fine &nbsp;|&nbsp; 🟡 250–400 Medium &nbsp;|&nbsp; 🟠 400–650 Coarse")
         else:
-            st.success(f"🟢 SAFE ZONE — Normal limits ({min_l:g} - {max_l:g} PPM)")
+            st.success(f"🟢 SAFE ZONE — Normal limits ({min_l:g} - {max_l:g} ppm)")
 
         st.caption(f"🕒 Last Updated: {last_t}")
 
@@ -753,7 +760,7 @@ with tabs_op[0]:
     col_a, col_b = st.columns(2)
     with col_a:
         new_val = st.number_input(
-            "Oxygen Value (PPM)",
+            "Oxygen Value (ppm)",
             value=float(current_pt["val"]),
             step=0.01,
             format="%.2f",
@@ -767,13 +774,13 @@ with tabs_op[0]:
             st.text_input(
                 "Coil/Item Prefix (fixed)",
                 value=new_prefix,
-                key="edit_prefix",
+                key=f"edit_prefix_{selected_edit_idx}",
                 disabled=True,
             )
             new_num = st.text_input(
                 "Coil/Item Number",
                 value=current_pt.get("coil_num", ""),
-                key="edit_num",
+                key=f"edit_num_{selected_edit_idx}",
             )
         else:
             new_num = ""
