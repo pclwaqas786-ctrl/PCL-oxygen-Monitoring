@@ -30,9 +30,9 @@ PCL_LOGO_B64 = _load_logo_b64()
 
 
 def get_pkt_time():
-    """Returns current accurate Pakistan Standard Time (UTC+5)"""
+    """Returns current Pakistan time (UTC+5) in short display format."""
     pkt_zone = timezone(timedelta(hours=5))
-    return datetime.now(pkt_zone).strftime("%Y-%m-%d %I:%M:%S %p")
+    return datetime.now(pkt_zone).strftime("%d-%m %I:%M %p")
 
 
 default_store = {
@@ -44,7 +44,7 @@ default_store = {
     "schema_version": 2,
     "user_db": {
         "admin": {
-            "pass": "admin123@",
+            "pass": "waqas123@",
             "name": "Admin Manager",
             "role": "admin",
             "email": "admin@pcable.com",
@@ -63,12 +63,12 @@ default_store = {
             "coil_num": "9653",
             "val": 220.0,
             "min_limit": 100.0,
-            "max_limit": 350.0,
+            "max_limit": 650.0,
             "last_updated": get_pkt_time(),
         },
         {
             "name": "Tundish",
-            "coil_prefix": "",
+            "coil_prefix": "TUN",
             "coil_num": "",
             "val": 185.97,
             "min_limit": 100.0,
@@ -77,7 +77,7 @@ default_store = {
         },
         {
             "name": "Shaft Furnace(SF)",
-            "coil_prefix": "",
+            "coil_prefix": "SF",
             "coil_num": "",
             "val": 320.0,
             "min_limit": 100.0,
@@ -86,7 +86,7 @@ default_store = {
         },
         {
             "name": "Holding furnace(HF)",
-            "coil_prefix": "",
+            "coil_prefix": "HF",
             "coil_num": "",
             "val": 150.0,
             "min_limit": 100.0,
@@ -160,6 +160,50 @@ def sheets_autosave_on(sheet_url):
     )
 
 
+def diagnose_sheets(sheet_url):
+    """Step-by-step diagnosis of the Google Sheets webhook. Returns
+    (ok, lines) where lines is a list of human-readable status strings."""
+    lines = []
+    if not sheet_url or "your-sheet-id-here" in sheet_url:
+        lines.append("❌ Webhook URL set nahi hai.")
+        lines.append("👉 Admin Branding Settings me Apps Script ka /exec URL paste karo (README.md me steps hain).")
+        return False, lines
+    if "script.google.com/macros" not in sheet_url:
+        lines.append("❌ Ye /exec webhook URL nahi lag raha.")
+        lines.append("👉 Normal Sheets share-link POST accept nahi karta. Apps Script > Deploy > New deployment > Web app ka /exec URL chahiye.")
+        return False, lines
+    lines.append("✅ /exec URL format theek hai. Test row bhej raha hun...")
+    test_row = {
+        "Time": get_pkt_time(),
+        "Station": "TEST",
+        "Coil": "TEST",
+        "Value": 0,
+        "User": "diagnostic",
+        "Shift": "-",
+    }
+    try:
+        sess = requests.Session()
+        r1 = sess.post(sheet_url, json={"data": test_row}, timeout=10,
+                       allow_redirects=False)
+        lines.append(f"POST status: {r1.status_code}")
+        if r1.is_redirect and r1.headers.get("Location"):
+            r2 = sess.get(r1.headers["Location"], timeout=20)
+            ok = r2.ok and '"ok":true' in r2.text.replace(" ", "")
+            lines.append(f"Redirect ke baad status: {r2.status_code}, jawab: {r2.text[:120]}")
+        else:
+            ok = r1.ok and '"ok":true' in r1.text.replace(" ", "")
+            lines.append(f"Jawab: {r1.text[:120]}")
+        if ok:
+            lines.append("✅ Google Sheets ko test row mil gayi — Sheet ka 'Logs' tab check karo.")
+        else:
+            lines.append("❌ Sheet ne ok:true nahi bheja — aksar wajah Apps Script deployment ka EXPIRE hona hai.")
+            lines.append("👉 Fix: Google Sheet > Extensions > Apps Script > Deploy > Manage deployments > naya version deploy karo, naya /exec URL yahan paste karo.")
+        return ok, lines
+    except Exception as e:
+        lines.append(f"❌ Connection error: {e}")
+        return False, lines
+
+
 # One-time migration (v2): green default readings + Jail Siren default sound.
 # The server's store_data.json survives redeploys, so without this the old
 # values (ROD 556, SF 0.0) and old sound would persist after the update.
@@ -171,6 +215,40 @@ if store.get("schema_version", 1) < 2:
     store["selected_alarm_sound"] = "Jail Siren (Wail)"
     store["schema_version"] = 2
     save_store()
+
+# One-time migration (v3): admin password change + ROD pic standards
+# (100-650) + coil prefixes for all stations. The server's store_data.json
+# survives redeploys, so the live password/limits only change via this.
+if store.get("schema_version", 2) < 3:
+    _prefix_by_station = {
+        "ROD": "CR",
+        "Tundish": "TUN",
+        "Shaft Furnace(SF)": "SF",
+        "Holding furnace(HF)": "HF",
+    }
+    for _pt in store.get("monitoring_points", []):
+        _nm = _pt.get("name", "")
+        if _nm in _prefix_by_station:
+            _pt["coil_prefix"] = _prefix_by_station[_nm]
+        if _nm == "ROD":
+            _pt["min_limit"] = 100.0
+            _pt["max_limit"] = 650.0
+    _users = store.get("user_db", {})
+    if "admin" in _users:
+        _users["admin"]["pass"] = "waqas123@"
+    store["schema_version"] = 3
+    save_store()
+
+# ROD wire-size grade zones (pic standard, 4 Oct 2026): overall 100-650.
+# green 100-250 fine, yellow 250-400 medium, orange 400-650 coarse.
+def rod_grade(val):
+    if val < 100.0 or val > 650.0:
+        return ("🔴 OUT OF SPEC", "#ef4444")
+    if val <= 250.0:
+        return ("🟢 Fine Wire Grade (100–250)", "#22c55e")
+    if val <= 400.0:
+        return ("🟡 Medium Wire Grade (250–400)", "#eab308")
+    return ("🟠 Coarse Wire Grade (400–650)", "#f97316")
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -196,7 +274,7 @@ button[data-baseweb="tab"], [data-testid="stTab"] {
     border-radius: 10px;
     padding: 10px 18px;
     font-weight: 700;
-    font-size: 17px !important;
+    font-size: 19px !important;
     border: 1px solid #3b5178;
 }
 button[data-baseweb="tab"]:hover, [data-testid="stTab"]:hover {
@@ -363,6 +441,26 @@ current_js = sound_scripts.get(
 )
 
 
+# Admin quick controls in the sidebar (sound also lives in its own tab)
+if is_admin:
+    _sounds = list(sound_scripts.keys())
+    _cur = store.get("selected_alarm_sound", "Jail Siren (Wail)")
+    _pick = st.sidebar.selectbox(
+        "🔊 Alarm Sound",
+        options=_sounds,
+        index=_sounds.index(_cur) if _cur in _sounds else 0,
+        key="sb_sound",
+    )
+    if _pick != _cur:
+        store["selected_alarm_sound"] = _pick
+        save_store()
+        st.rerun()
+    if st.sidebar.button("🔍 Test Google Sheets", key="sb_sheet_test"):
+        _ok, _lines = diagnose_sheets(store.get("google_sheet_url", ""))
+        for _ln in _lines:
+            st.sidebar.write(_ln)
+
+
 # Checking Alarm Logic
 play_audio = False
 critical_stations = []
@@ -379,7 +477,9 @@ for pt in store["monitoring_points"]:
             play_audio = True
 
 
-# Fullscreen station display - giant readout for control-room screens
+# Fullscreen station display - control-room wall: one big station plus
+# the other three as small cards (tap a card to switch). Compact enough
+# to fit one screen without scrolling.
 if st.session_state.get("fs_station"):
     if play_audio:
         st.components.v1.html(
@@ -387,6 +487,18 @@ if st.session_state.get("fs_station"):
             height=0,
             width=0,
         )
+    st.markdown(
+        """<style>
+        section[data-testid="stSidebar"]{display:none !important;}
+        header[data-testid="stHeader"]{display:none !important;}
+        header{display:none !important;}
+        [data-testid="stHeader"]{display:none !important;}
+        [data-testid="stToolbar"]{display:none !important;}
+        div[data-testid="stToolbar"]{display:none !important;}
+        section.main{padding-top:6px !important;}
+        </style>""",
+        unsafe_allow_html=True,
+    )
     fs_name = st.session_state.fs_station
     fs_pt = next(
         (p for p in store["monitoring_points"] if p["name"] == fs_name), None
@@ -401,41 +513,61 @@ if st.session_state.get("fs_station"):
         fs_crit = fs_val < fs_min or fs_val > fs_max
         fs_color = "#ef4444" if fs_crit else "#22c55e"
         fs_bg = "#26090d" if fs_crit else "#03130d"
-        fs_status = (
-            f"CRITICAL - out of bounds ({fs_min} - {fs_max} PPM)"
-            if fs_crit
-            else f"SAFE ZONE - Normal limits ({fs_min} - {fs_max} PPM)"
-        )
+        if fs_name == "ROD" and not fs_crit:
+            _fg, _fc = rod_grade(fs_val)
+            fs_status = _fg
+            fs_color = _fc
+        else:
+            fs_status = (
+                f"CRITICAL - out of bounds ({fs_min:g} - {fs_max:g} PPM)"
+                if fs_crit
+                else f"SAFE ZONE - Normal limits ({fs_min:g} - {fs_max:g} PPM)"
+            )
         fs_coil = ""
-        if "ROD" in fs_name.upper() and (
-            fs_pt.get("coil_prefix") or fs_pt.get("coil_num")
-        ):
-            fs_coil = f"<div style='font-size:32px;color:#7dd3fc;font-weight:700;margin-bottom:8px;'>Coil: {fs_pt.get('coil_prefix','')}-{fs_pt.get('coil_num','')}</div>"
-        st.markdown(
-            """<style>
-            section[data-testid="stSidebar"]{display:none !important;}
-            header[data-testid="stHeader"]{display:none !important;}
-            header{display:none !important;}
-            [data-testid="stHeader"]{display:none !important;}
-            [data-testid="stToolbar"]{display:none !important;}
-            div[data-testid="stToolbar"]{display:none !important;}
-            </style>""",
-            unsafe_allow_html=True,
-        )
+        _pfx, _num = fs_pt.get("coil_prefix", ""), fs_pt.get("coil_num", "")
+        if _pfx or _num:
+            _coil_txt = f"{_pfx}-{_num}" if _num else f"{_pfx}- ___"
+            fs_coil = f"<div style='font-size:26px;color:#7dd3fc;font-weight:700;margin-bottom:6px;'>Coil: {_coil_txt}</div>"
         # NOTE: single-line HTML (no blank lines / indentation) so the markdown
-        # renderer never treats the value divs as a code block when fs_coil is empty.
+        # renderer never treats the value divs as a code block.
         fs_html = (
-            '<div style="min-height:82vh;display:flex;flex-direction:column;align-items:center;justify-content:center;'
-            f'background:{fs_bg};border:6px solid {fs_color};border-radius:24px;margin:6px;padding:20px 12px;text-align:center;">'
-            f'<div style="font-size:44px;font-weight:800;color:#ffffff;margin-bottom:4px;">{fs_name}</div>'
+            '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
+            f'background:{fs_bg};border:5px solid {fs_color};border-radius:20px;margin:4px;padding:10px 8px;text-align:center;">'
+            f'<div style="font-size:34px;font-weight:800;color:#ffffff;margin-bottom:2px;">{fs_name}</div>'
             f"{fs_coil}"
-            f'<div style="font-size:21vw;line-height:1.05;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>'
-            f'<div style="font-size:52px;color:{fs_color};font-weight:800;">PPM</div>'
-            f'<div style="font-size:24px;color:#e5e7eb;margin-top:10px;">{fs_status}</div>'
-            f'<div style="font-size:18px;color:#9ca3af;margin-top:6px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())} (PKT)</div>'
+            f'<div style="font-size:13vw;line-height:1;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>'
+            f'<div style="font-size:36px;color:{fs_color};font-weight:800;">PPM</div>'
+            f'<div style="font-size:19px;color:#e5e7eb;margin-top:6px;">{fs_status}</div>'
+            f'<div style="font-size:14px;color:#9ca3af;margin-top:4px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
             "</div>"
         )
         st.markdown(fs_html, unsafe_allow_html=True)
+        # The other three stations as small cards - tap one to make it big.
+        _others = [p for p in store["monitoring_points"] if p["name"] != fs_name]
+        _cols = st.columns(3)
+        for _c, _op in zip(_cols, _others):
+            with _c:
+                _ov = _op["val"]
+                _omn = _op.get("min_limit", 100.0)
+                _omx = _op.get("max_limit", 350.0)
+                _ocrit = _ov < _omn or _ov > _omx
+                _ocol = "#ef4444" if _ocrit else "#22c55e"
+                _obg = "#1f1215" if _ocrit else "#062319"
+                _pp, _nn = _op.get("coil_prefix", ""), _op.get("coil_num", "")
+                _coiltxt = ""
+                if _pp or _nn:
+                    _coiltxt = f"<div style='font-size:12px;color:#7dd3fc;font-weight:700;'>{_pp}-{_nn if _nn else '___'}</div>"
+                st.markdown(
+                    "<div style='background:" + _obg + ";border:2px solid " + _ocol + ";border-radius:12px;padding:8px 4px;text-align:center;'>"
+                    + "<div style='font-size:15px;font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
+                    + _coiltxt
+                    + "<div style='font-size:30px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.2f}" + "</div>"
+                    + "<div style='font-size:12px;color:" + _ocol + ";font-weight:700;'>PPM</div></div>",
+                    unsafe_allow_html=True,
+                )
+                if st.button(f"⛶ {_op['name']}", key=f"fs_sw_{_op['name']}", use_container_width=True):
+                    st.session_state.fs_station = _op["name"]
+                    st.rerun()
         fs_b1, fs_b2 = st.columns(2)
         with fs_b1:
             if st.button("Refresh", key="fs_refresh", use_container_width=True):
@@ -450,6 +582,7 @@ if st.session_state.get("fs_station"):
                 st.session_state.pop("fs_station", None)
                 st.rerun()
         st.stop()
+
 
 
 # Header Section
@@ -524,32 +657,41 @@ for idx, tab in enumerate(station_tabs):
             unsafe_allow_html=True,
         )
 
-        if "ROD" in s_name.upper() and (
-            pt.get("coil_prefix") or pt.get("coil_num")
-        ):
+        _cpfx, _cnum = pt.get("coil_prefix", ""), pt.get("coil_num", "")
+        if _cpfx or _cnum:
+            _coil_disp = f"{_cpfx}-{_cnum}" if _cnum else f"{_cpfx}- ___"
             st.markdown(
-                f"<div style='text-align: center; color: #38bdf8; font-size: 30px; font-weight: 700; margin: 2px 0;'>📦 Coil: {pt.get('coil_prefix', '')}-{pt.get('coil_num', '')}</div>",
+                f"<div style='text-align: center; color: #38bdf8; font-size: 32px; font-weight: 700; margin: 2px 0;'>📦 Coil: {_coil_disp}</div>",
                 unsafe_allow_html=True,
             )
 
-        val_color = "#ef4444" if is_critical else "#10b981"
+        # ROD uses the pic's wire-size grade zones; other stations use min/max.
+        _grade_label = ""
+        if s_name == "ROD" and not is_critical:
+            _grade_label, _grade_color = rod_grade(val)
+            val_color = _grade_color
+        else:
+            val_color = "#ef4444" if is_critical else "#10b981"
         st.markdown(
-            f"<h2 style='text-align: center; color: #ffffff; font-size: 46px; margin: 2px 0 0 0; font-weight: 800;'>{s_name}</h2>",
+            f"<h2 style='text-align: center; color: #ffffff; font-size: 54px; margin: 2px 0 0 0; font-weight: 800;'>{s_name}</h2>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<h1 style='text-align: center; color: {val_color}; font-size: 112px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 42px;'>PPM</span></h1>",
+            f"<h1 style='text-align: center; color: {val_color}; font-size: 128px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 48px;'>PPM</span></h1>",
             unsafe_allow_html=True,
         )
 
         if is_critical:
             st.error(
-                f"🚨 CRITICAL ALERT — Value out of safe bounds ({min_l} - {max_l} PPM)"
+                f"🚨 CRITICAL ALERT — Value out of safe bounds ({min_l:g} - {max_l:g} PPM)"
             )
+        elif _grade_label:
+            st.success(_grade_label)
+            st.caption("🟢 100–250 Fine &nbsp;|&nbsp; 🟡 250–400 Medium &nbsp;|&nbsp; 🟠 400–650 Coarse")
         else:
-            st.success(f"🟢 SAFE ZONE — Normal limits ({min_l} - {max_l} PPM)")
+            st.success(f"🟢 SAFE ZONE — Normal limits ({min_l:g} - {max_l:g} PPM)")
 
-        st.caption(f"🕒 Last Updated: {last_t} (PKT)")
+        st.caption(f"🕒 Last Updated: {last_t}")
 
         if st.button(
             f"⛶ Full Screen ({s_name})",
@@ -618,11 +760,15 @@ with tabs_op[0]:
         )
 
     with col_b:
-        if "ROD" in current_pt["name"].upper():
-            new_prefix = st.text_input(
-                "Coil/Item Prefix",
-                value=current_pt.get("coil_prefix", "CR"),
+        # Coil prefix is constant per station (CR/TUN/SF/HF) - only the
+        # number is editable; it starts empty for the user to fill.
+        new_prefix = current_pt.get("coil_prefix", "")
+        if new_prefix:
+            st.text_input(
+                "Coil/Item Prefix (fixed)",
+                value=new_prefix,
                 key="edit_prefix",
+                disabled=True,
             )
             new_num = st.text_input(
                 "Coil/Item Number",
@@ -630,7 +776,6 @@ with tabs_op[0]:
                 key="edit_num",
             )
         else:
-            new_prefix = ""
             new_num = ""
 
     if st.button("Submit & Save Reading", type="primary"):
@@ -650,7 +795,7 @@ with tabs_op[0]:
             "Station": current_pt["name"],
             "Coil": (
                 f"{new_prefix}-{new_num}"
-                if new_num and "ROD" in current_pt["name"].upper()
+                if new_num and new_prefix
                 else "N/A"
             ),
             "Value": new_val,
@@ -666,7 +811,7 @@ with tabs_op[0]:
         # NOTE: st.success must NOT be called right before st.rerun() -
         # the rerun discards it, so the user never sees the confirmation.
         # Store it in session state and show it after the rerun instead.
-        msg = f"Reading updated successfully at {now_str} (PKT)!"
+        msg = f"Reading updated successfully at {now_str}!"
         if sheets_autosave_on(store.get("google_sheet_url", "")) and not sheets_ok:
             msg += " (Note: Google Sheets save failed - saved locally only.)"
         st.session_state["reading_saved_msg"] = msg
