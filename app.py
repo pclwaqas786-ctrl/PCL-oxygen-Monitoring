@@ -610,13 +610,15 @@ if st.session_state.get("fs_station"):
         if PCL_LOGO_B64:
             fs_logo = f"<img src='data:image/png;base64,{PCL_LOGO_B64}' style='height:6vh;object-fit:contain;margin-bottom:0.3vh;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));'>"
         fs_last = ""
-        _fl2 = last_station_logs(fs_name, 2)
-        if _fl2:
-            _fltxt = "  |  ".join(
-                f"{fmt_v(_l.get('Value', '?'))} @ {_l.get('Time', '')}"
-                for _l in _fl2
+        _fl1 = last_station_logs(fs_name, 1)
+        if _fl1:
+            _lv = fmt_v(_fl1[0].get("Value", "?"))
+            _lt = _fl1[0].get("Time", "")
+            fs_last = (
+                f'<div style="font-size:min(3vw,2.6vh);color:#c7d2e4;margin-top:0.5vh;">'
+                f"⏱ <span style='font-size:0.72em;'>{_lt}</span>"
+                f" &nbsp; Last: <span style='color:{fs_color};font-weight:800;'>{_lv}</span></div>"
             )
-            fs_last = f'<div style="font-size:min(4.5vw,4vh);color:#c7d2e4;margin-top:0.5vh;">⏱ Last: {_fltxt}</div>'
         # NOTE: single-line HTML (no blank lines / indentation) so the markdown
         # renderer never treats the value divs as a code block.
         fs_html = (
@@ -628,7 +630,7 @@ if st.session_state.get("fs_station"):
             f'<div style="font-size:min(20vw,34vh);line-height:1;color:{fs_color};font-weight:900;">{fs_val:.0f}</div>'
             f'<div style="font-size:min(5.5vw,5vh);color:{fs_color};font-weight:800;">ppm</div>'
             f'<div style="font-size:min(3.2vw,2.8vh);color:#e5e7eb;margin-top:0.8vh;">{fs_status}</div>'
-            f'<div style="font-size:min(3.5vw,3.2vh);color:#9ca3af;margin-top:0.5vh;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
+            f'<div style="font-size:min(3vw,2.6vh);color:#9ca3af;margin-top:0.5vh;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
             f"{fs_last}"
             "</div>"
         )
