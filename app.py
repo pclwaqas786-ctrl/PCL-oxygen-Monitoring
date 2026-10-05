@@ -58,24 +58,6 @@ default_store = {
     },
     "monitoring_points": [
         {
-            "name": "ROD",
-            "coil_prefix": "CR",
-            "coil_num": "9653",
-            "val": 220.0,
-            "min_limit": 100.0,
-            "max_limit": 650.0,
-            "last_updated": get_pkt_time(),
-        },
-        {
-            "name": "Tundish",
-            "coil_prefix": "TUN",
-            "coil_num": "",
-            "val": 185.97,
-            "min_limit": 100.0,
-            "max_limit": 350.0,
-            "last_updated": get_pkt_time(),
-        },
-        {
             "name": "Shaft Furnace(SF)",
             "coil_prefix": "SF",
             "coil_num": "",
@@ -91,6 +73,23 @@ default_store = {
             "val": 150.0,
             "min_limit": 100.0,
             "max_limit": 500.0,
+            "last_updated": get_pkt_time(),
+        },        {
+            "name": "Tundish",
+            "coil_prefix": "TUN",
+            "coil_num": "",
+            "val": 185.97,
+            "min_limit": 100.0,
+            "max_limit": 350.0,
+            "last_updated": get_pkt_time(),
+        },
+        {
+            "name": "ROD",
+            "coil_prefix": "CR",
+            "coil_num": "9653",
+            "val": 220.0,
+            "min_limit": 100.0,
+            "max_limit": 650.0,
             "last_updated": get_pkt_time(),
         },
     ],
@@ -237,6 +236,19 @@ if store.get("schema_version", 2) < 3:
     if "admin" in _users:
         _users["admin"]["pass"] = "waqas123@"
     store["schema_version"] = 3
+    save_store()
+
+# One-time migration (v4): station order -> Shaft Furnace, Holding Furnace,
+# Tundish, ROD (user request 5 Oct 2026). Order drives the tabs, the
+# fullscreen cards, the Update Readings dropdown and Manage Limits.
+if store.get("schema_version", 3) < 4:
+    _want_order = ["Shaft Furnace(SF)", "Holding furnace(HF)", "Tundish", "ROD"]
+    _pts = store.get("monitoring_points", [])
+    _by_name = {_p.get("name"): _p for _p in _pts}
+    _new_pts = [_by_name[_n] for _n in _want_order if _n in _by_name]
+    _new_pts += [_p for _p in _pts if _p.get("name") not in _want_order]
+    store["monitoring_points"] = _new_pts
+    store["schema_version"] = 4
     save_store()
 
 # ROD wire-size grade zones (pic standard, 4 Oct 2026): overall 100-650.
