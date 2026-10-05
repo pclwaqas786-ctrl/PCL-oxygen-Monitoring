@@ -251,6 +251,17 @@ if store.get("schema_version", 3) < 4:
     store["schema_version"] = 4
     save_store()
 
+# One-time migration (v5): whole-number readings (user request 5 Oct 2026)
+# - decimals khatam, e.g. 222. Rounds any stored float values.
+if store.get("schema_version", 4) < 5:
+    for _pt in store.get("monitoring_points", []):
+        try:
+            _pt["val"] = int(round(float(_pt.get("val", 0))))
+        except (TypeError, ValueError):
+            pass
+    store["schema_version"] = 5
+    save_store()
+
 # ROD wire-size grade zones (pic standard, 4 Oct 2026): overall 100-650.
 # green 100-250 fine, yellow 250-400 medium, orange 400-650 coarse.
 def rod_grade(val):
@@ -554,7 +565,7 @@ if st.session_state.get("fs_station"):
             f"{fs_logo}"
             f'<div style="font-size:56px;font-weight:800;color:#ffffff;margin-bottom:2px;">{fs_name}</div>'
             f"{fs_coil}"
-            f'<div style="font-size:20vw;line-height:1;color:{fs_color};font-weight:900;">{fs_val:.2f}</div>'
+            f'<div style="font-size:20vw;line-height:1;color:{fs_color};font-weight:900;">{fs_val:.0f}</div>'
             f'<div style="font-size:60px;color:{fs_color};font-weight:800;">ppm</div>'
             f'<div style="font-size:30px;color:#e5e7eb;margin-top:6px;">{fs_status}</div>'
             f'<div style="font-size:20px;color:#9ca3af;margin-top:4px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
@@ -580,7 +591,7 @@ if st.session_state.get("fs_station"):
                     "<div style='background:" + _obg + ";border:2px solid " + _ocol + ";border-radius:12px;padding:8px 4px;text-align:center;'>"
                     + "<div style='font-size:22px;font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
                     + _coiltxt
-                    + "<div style='font-size:44px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.2f}" + "</div>"
+                    + "<div style='font-size:44px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.0f}" + "</div>"
                     + "<div style='font-size:16px;color:" + _ocol + ";font-weight:700;'>ppm</div></div>",
                     unsafe_allow_html=True,
                 )
@@ -696,7 +707,7 @@ for idx, tab in enumerate(station_tabs):
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<h1 style='text-align: center; color: {val_color}; font-size: 128px; margin: 10px 0; font-weight: 900;'>{val:.2f} <span style='font-size: 48px;'>ppm</span></h1>",
+            f"<h1 style='text-align: center; color: {val_color}; font-size: 128px; margin: 10px 0; font-weight: 900;'>{val:.0f} <span style='font-size: 48px;'>ppm</span></h1>",
             unsafe_allow_html=True,
         )
 
@@ -773,9 +784,9 @@ with tabs_op[0]:
     with col_a:
         new_val = st.number_input(
             "Oxygen Value (ppm)",
-            value=float(current_pt["val"]),
-            step=0.01,
-            format="%.2f",
+            value=int(round(float(current_pt["val"]))),
+            step=1,
+            format="%d",
         )
 
     with col_b:
