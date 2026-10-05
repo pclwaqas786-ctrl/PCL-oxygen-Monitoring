@@ -568,9 +568,11 @@ if st.session_state.get("fs_station"):
         [data-testid="stHeader"]{display:none !important;}
         [data-testid="stToolbar"]{display:none !important;}
         div[data-testid="stToolbar"]{display:none !important;}
-        section.main{padding-top:6px !important;}
+        section.main{padding-top:6px !important;padding-bottom:0 !important;}
+        html, body, [data-testid="stAppViewContainer"]{overflow:hidden !important;}
+        [data-testid="stVerticalBlock"]{gap:0.6vh !important;}
         [data-testid="stBaseButton-secondary"], [data-testid="stBaseButton-primary"]{
-            font-size:22px !important;font-weight:800 !important;padding:12px 6px !important;
+            font-size:min(2.6vw,2.2vh) !important;font-weight:800 !important;padding:1vh 6px !important;
         }
         </style>""",
         unsafe_allow_html=True,
@@ -603,10 +605,10 @@ if st.session_state.get("fs_station"):
         _pfx, _num = fs_pt.get("coil_prefix", ""), fs_pt.get("coil_num", "")
         if _pfx or _num:
             _coil_txt = f"{_pfx}-{_num}" if _num else f"{_pfx}- ___"
-            fs_coil = f"<div style='font-size:40px;color:#7dd3fc;font-weight:700;margin-bottom:6px;'>Coil: {_coil_txt}</div>"
+            fs_coil = f"<div style='font-size:min(3.6vw,3.2vh);color:#7dd3fc;font-weight:700;margin-bottom:0.5vh;'>Coil: {_coil_txt}</div>"
         fs_logo = ""
         if PCL_LOGO_B64:
-            fs_logo = f"<img src='data:image/png;base64,{PCL_LOGO_B64}' style='height:64px;object-fit:contain;margin-bottom:2px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));'>"
+            fs_logo = f"<img src='data:image/png;base64,{PCL_LOGO_B64}' style='height:6vh;object-fit:contain;margin-bottom:0.3vh;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));'>"
         fs_last = ""
         _fl2 = last_station_logs(fs_name, 2)
         if _fl2:
@@ -614,19 +616,19 @@ if st.session_state.get("fs_station"):
                 f"{fmt_v(_l.get('Value', '?'))} @ {_l.get('Time', '')}"
                 for _l in _fl2
             )
-            fs_last = f'<div style="font-size:30px;color:#c7d2e4;margin-top:6px;">⏱ Last: {_fltxt}</div>'
+            fs_last = f'<div style="font-size:min(2.8vw,2.6vh);color:#c7d2e4;margin-top:0.5vh;">⏱ Last: {_fltxt}</div>'
         # NOTE: single-line HTML (no blank lines / indentation) so the markdown
         # renderer never treats the value divs as a code block.
         fs_html = (
             '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;'
-            f'background:{fs_bg};border:5px solid {fs_color};border-radius:20px;margin:4px;padding:10px 8px;text-align:center;">'
+            f'background:{fs_bg};border:5px solid {fs_color};border-radius:20px;margin:0.5vh;padding:1vh 8px;text-align:center;">'
             f"{fs_logo}"
-            f'<div style="font-size:56px;font-weight:800;color:#ffffff;margin-bottom:2px;">{fs_name}</div>'
+            f'<div style="font-size:min(5vw,4.2vh);font-weight:800;color:#ffffff;margin-bottom:0.3vh;">{fs_name}</div>'
             f"{fs_coil}"
-            f'<div style="font-size:20vw;line-height:1;color:{fs_color};font-weight:900;">{fs_val:.0f}</div>'
-            f'<div style="font-size:60px;color:{fs_color};font-weight:800;">ppm</div>'
-            f'<div style="font-size:30px;color:#e5e7eb;margin-top:6px;">{fs_status}</div>'
-            f'<div style="font-size:26px;color:#9ca3af;margin-top:6px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
+            f'<div style="font-size:min(20vw,26vh);line-height:1;color:{fs_color};font-weight:900;">{fs_val:.0f}</div>'
+            f'<div style="font-size:min(5.5vw,5vh);color:{fs_color};font-weight:800;">ppm</div>'
+            f'<div style="font-size:min(3.2vw,2.8vh);color:#e5e7eb;margin-top:0.8vh;">{fs_status}</div>'
+            f'<div style="font-size:min(2.4vw,2.2vh);color:#9ca3af;margin-top:0.5vh;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
             f"{fs_last}"
             "</div>"
         )
@@ -645,13 +647,13 @@ if st.session_state.get("fs_station"):
                 _pp, _nn = _op.get("coil_prefix", ""), _op.get("coil_num", "")
                 _coiltxt = ""
                 if _pp or _nn:
-                    _coiltxt = f"<div style='font-size:20px;color:#7dd3fc;font-weight:700;'>{_pp}-{_nn if _nn else '___'}</div>"
+                    _coiltxt = f"<div style='font-size:min(2.4vw,2.2vh);color:#7dd3fc;font-weight:700;margin-bottom:0.3vh;'>{_pp}-{_nn if _nn else '___'}</div>"
                 st.markdown(
-                    "<div style='background:" + _obg + ";border:3px solid " + _ocol + ";border-radius:16px;padding:14px 8px;text-align:center;'>"
-                    + "<div style='font-size:28px;font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
+                    "<div style='background:" + _obg + ";border:3px solid " + _ocol + ";border-radius:16px;padding:1.2vh 0.5vw;text-align:center;'>"
+                    + "<div style='font-size:min(3vw,2.8vh);font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
                     + _coiltxt
-                    + "<div style='font-size:62px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.0f}" + "</div>"
-                    + "<div style='font-size:20px;color:" + _ocol + ";font-weight:700;'>ppm</div></div>",
+                    + "<div style='font-size:min(9vw,7.5vh);font-weight:900;color:" + _ocol + ";line-height:1.05;'>" + f"{_ov:.0f}" + "</div>"
+                    + "<div style='font-size:min(2.4vw,2.2vh);color:" + _ocol + ";font-weight:700;'>ppm</div></div>",
                     unsafe_allow_html=True,
                 )
                 if st.button(f"⛶ {_op['name']}", key=f"fs_sw_{_op['name']}", use_container_width=True):
