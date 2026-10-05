@@ -610,10 +610,13 @@ if st.session_state.get("fs_station"):
         if PCL_LOGO_B64:
             fs_logo = f"<img src='data:image/png;base64,{PCL_LOGO_B64}' style='height:6vh;object-fit:contain;margin-bottom:0.3vh;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));'>"
         fs_last = ""
-        _fl1 = last_station_logs(fs_name, 1)
-        if _fl1:
-            _lv = fmt_v(_fl1[0].get("Value", "?"))
-            _lt = _fl1[0].get("Time", "")
+        # Show the PREVIOUS reading (2nd in history) - the latest log entry
+        # is always the big current number itself, so showing it would
+        # just duplicate it.
+        _fl2 = last_station_logs(fs_name, 2)
+        if len(_fl2) >= 2:
+            _lv = fmt_v(_fl2[1].get("Value", "?"))
+            _lt = _fl2[1].get("Time", "")
             fs_last = (
                 f'<div style="font-size:min(3vw,2.6vh);color:#c7d2e4;margin-top:0.5vh;">'
                 f"⏱ <span style='font-size:0.72em;'>{_lt}</span>"
@@ -785,11 +788,12 @@ for idx, tab in enumerate(station_tabs):
             st.success(f"🟢 SAFE ZONE — Normal limits ({min_l:g} - {max_l:g} ppm)")
 
         st.caption(f"🕒 Last Updated: {last_t}")
-        _last2 = last_station_logs(s_name, 2)
-        if _last2:
+        # Previous readings (skip the latest - it is the big current value).
+        _last_prev = last_station_logs(s_name, 3)[1:]
+        if _last_prev:
             _ltxt = "  |  ".join(
                 f"{fmt_v(_l.get('Value', '?'))} @ {_l.get('Time', '')}"
-                for _l in _last2
+                for _l in _last_prev
             )
             st.caption(f"⏱ Last readings: {_ltxt}")
 
