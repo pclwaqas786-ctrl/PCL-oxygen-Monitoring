@@ -2,6 +2,7 @@ import base64
 from datetime import datetime, timedelta, timezone
 import json
 import os
+import time
 import pandas as pd
 import requests
 import streamlit as st
@@ -46,13 +47,13 @@ default_store = {
         "admin": {
             "pass": "waqas123@",
             "name": "Admin Manager",
-            "role": "admin",
+            "role": "main_admin",
             "email": "admin@pcable.com",
         },
         "shoaib.sheikh": {
             "pass": "123456",
             "name": "Shoaib Sheikh",
-            "role": "operator",
+            "role": "user",
             "email": "shoaib@pcable.com",
         },
     },
@@ -262,6 +263,32 @@ if store.get("schema_version", 4) < 5:
     store["schema_version"] = 5
     save_store()
 
+# One-time migration (v6): roles -> main_admin / admin / user (5 Oct 2026).
+# main_admin (username "admin", i.e. him) = everything;
+# admin = readings + oxygen limits; user (old "operator") = readings only.
+if store.get("schema_version", 5) < 6:
+    for _uname, _u in store.get("user_db", {}).items():
+        if _uname == "admin":
+            _u["role"] = "main_admin"
+        elif _u.get("role") == "operator":
+            _u["role"] = "user"
+    store["schema_version"] = 6
+    save_store()
+
+
+def fmt_v(v):
+    """Compact number formatting for display (220 not 220.0)."""
+    try:
+        return f"{float(v):g}"
+    except (TypeError, ValueError):
+        return str(v)
+
+
+def last_station_logs(station, n=2):
+    """Most-recent-first list of the last n log rows for a station."""
+    _logs = [l for l in store.get("log_history", []) if l.get("Station") == station]
+    return _logs[-n:][::-1]
+
 # ROD wire-size grade zones (pic standard, 4 Oct 2026): overall 100-650.
 # green 100-250 fine, yellow 250-400 medium, orange 400-650 coarse.
 def rod_grade(val):
@@ -332,10 +359,12 @@ section[data-testid="stSidebar"] { background-color: #0d1626; }
     unsafe_allow_html=True,
 )
 
-# Sidebar Login Controls
+# Sidebar Login Controls — public view-only mode; login is only needed
+# to submit readings or change settings. 30-min idle auto-logout;
+# a plain refresh does NOT log out.
 st.sidebar.markdown("### 🔐 User Login & Controls")
 if not st.session_state.logged_in:
-    st.sidebar.warning("Please log in to continue.")
+    st.sidebar.info("👁 View-only mode — log in to submit readings.")
     login_user = st.sidebar.text_input("Username", key="login_u")
     login_pass = st.sidebar.text_input("Password", type="password", key="login_p")
     if st.sidebar.button("Login", type="primary"):
@@ -345,33 +374,54 @@ if not st.session_state.logged_in:
         ):
             st.session_state.logged_in = True
             st.session_state.username = login_user
+            st.session_state.last_touch = time.time()
             st.success("Logged in successfully!")
             st.rerun()
         else:
             st.sidebar.error("Invalid Username or Password")
-    st.stop()
+    user_info = {"name": "Guest", "role": "viewer"}
+else:
+    _now = time.time()
+    if _now - st.session_state.get("last_touch", _now) > 1800:
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.session_state.last_touch = _now
+        st.sidebar.warning("⏱ 30 min idle — auto logged out.")
+        st.rerun()
+    st.session_state.last_touch = _now
+    user_info = store["user_db"].get(
+        st.session_state.username, {"name": "User", "role": "user"}
+    )
+    st.sidebar.success(
+        f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
+    )
+    if st.sidebar.button("🚪 Logout", type="secondary"):
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.session_state.pop("fs_station", None)
+        st.rerun()
+    st.session_state.duty_shift = st.sidebar.selectbox(
+        "Select Duty Shift", ["Shift A", "Shift B"], index=0
+    )
 
-user_info = store["user_db"].get(
-    st.session_state.username, {"name": "Operator User", "role": "operator"}
-)
-is_admin = user_info.get("role") == "admin"
+# Role permissions: main_admin (him) = everything; admin = readings +
+# oxygen limits; user = readings only; viewer (no login) = view only.
+_role = user_info.get("role", "viewer")
+_is_main = _role == "main_admin"
 
-st.sidebar.success(
-    f"Logged in as: **{user_info['name']}** ({user_info['role'].upper()})"
-)
 
-if st.sidebar.button("🚪 Logout", type="secondary"):
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.pop("fs_station", None)
-    st.rerun()
+def _can(perm):
+    if _role == "main_admin":
+        return True
+    if _role == "admin":
+        return perm in ("readings", "limits")
+    if _role == "user":
+        return perm == "readings"
+    return False
 
-st.session_state.duty_shift = st.sidebar.selectbox(
-    "Select Duty Shift", ["Shift A", "Shift B"], index=0
-)
 
-# Admin Only Branding Controls in Sidebar
-if is_admin:
+# Main Admin Only Branding Controls in Sidebar
+if _is_main:
     with st.sidebar.expander("⚙️ Admin Branding Settings", expanded=False):
         new_title = st.text_input("Main Title", value=store["app_title"])
         new_subtitle = st.text_area("Subtitle", value=store["app_subtitle"])
@@ -464,8 +514,8 @@ current_js = sound_scripts.get(
 )
 
 
-# Admin quick controls in the sidebar (sound also lives in its own tab)
-if is_admin:
+# Main admin quick controls in the sidebar (sound also lives in its own tab)
+if _is_main:
     _sounds = list(sound_scripts.keys())
     _cur = store.get("selected_alarm_sound", "Jail Siren (Wail)")
     _pick = st.sidebar.selectbox(
@@ -557,6 +607,14 @@ if st.session_state.get("fs_station"):
         fs_logo = ""
         if PCL_LOGO_B64:
             fs_logo = f"<img src='data:image/png;base64,{PCL_LOGO_B64}' style='height:64px;object-fit:contain;margin-bottom:2px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.6));'>"
+        fs_last = ""
+        _fl2 = last_station_logs(fs_name, 2)
+        if _fl2:
+            _fltxt = "  |  ".join(
+                f"{fmt_v(_l.get('Value', '?'))} @ {_l.get('Time', '')}"
+                for _l in _fl2
+            )
+            fs_last = f'<div style="font-size:22px;color:#c7d2e4;margin-top:4px;">⏱ Last: {_fltxt}</div>'
         # NOTE: single-line HTML (no blank lines / indentation) so the markdown
         # renderer never treats the value divs as a code block.
         fs_html = (
@@ -569,6 +627,7 @@ if st.session_state.get("fs_station"):
             f'<div style="font-size:60px;color:{fs_color};font-weight:800;">ppm</div>'
             f'<div style="font-size:30px;color:#e5e7eb;margin-top:6px;">{fs_status}</div>'
             f'<div style="font-size:20px;color:#9ca3af;margin-top:4px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
+            f"{fs_last}"
             "</div>"
         )
         st.markdown(fs_html, unsafe_allow_html=True)
@@ -722,6 +781,13 @@ for idx, tab in enumerate(station_tabs):
             st.success(f"🟢 SAFE ZONE — Normal limits ({min_l:g} - {max_l:g} ppm)")
 
         st.caption(f"🕒 Last Updated: {last_t}")
+        _last2 = last_station_logs(s_name, 2)
+        if _last2:
+            _ltxt = "  |  ".join(
+                f"{fmt_v(_l.get('Value', '?'))} @ {_l.get('Time', '')}"
+                for _l in _last2
+            )
+            st.caption(f"⏱ Last readings: {_ltxt}")
 
         if st.button(
             f"⛶ Full Screen ({s_name})",
@@ -756,99 +822,99 @@ st.markdown("### 📝 Operations Panel")
 
 # Role Based Tab Generation
 op_tabs_list = ["⚡ Update Readings", "📊 Log History"]
-if is_admin:
-    op_tabs_list.extend(
-        [
-            "🔊 Alarm Sound Settings",
-            "⚙️ Admin: Manage Limits",
-            "👥 User Management",
-        ]
-    )
+if _can("limits"):
+    op_tabs_list.append("⚙️ Admin: Manage Limits")
+if _is_main:
+    op_tabs_list.extend(["🔊 Alarm Sound Settings", "👥 User Management"])
 
 tabs_op = st.tabs(op_tabs_list)
+_tab_by_name = dict(zip(op_tabs_list, tabs_op))
 
-# Tab 1: Update Readings (Both Admin and Operator)
-with tabs_op[0]:
-    st.subheader("Update Live Sensor Reading & Coil Information")
-    _saved_msg = st.session_state.pop("reading_saved_msg", None)
-    if _saved_msg:
-        st.success(_saved_msg)
-    selected_edit_idx = st.selectbox(
-        "Select Monitoring Point",
-        options=range(len(station_names)),
-        format_func=lambda x: station_names[x],
-    )
-    current_pt = store["monitoring_points"][selected_edit_idx]
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        new_val = st.number_input(
-            "Oxygen Value (ppm)",
-            value=int(round(float(current_pt["val"]))),
-            step=1,
-            format="%d",
+# Tab: Update Readings (login + readings permission needed to submit)
+with _tab_by_name["⚡ Update Readings"]:
+    if not (st.session_state.logged_in and _can("readings")):
+        st.info("🔐 Please log in to submit readings. (View-only mode)")
+    else:
+        st.subheader("Update Live Sensor Reading & Coil Information")
+        _saved_msg = st.session_state.pop("reading_saved_msg", None)
+        if _saved_msg:
+            st.success(_saved_msg)
+        selected_edit_idx = st.selectbox(
+            "Select Monitoring Point",
+            options=range(len(station_names)),
+            format_func=lambda x: station_names[x],
         )
+        current_pt = store["monitoring_points"][selected_edit_idx]
 
-    with col_b:
-        # Coil prefix is constant per station (CR/TUN/SF/HF) - only the
-        # number is editable; it starts empty for the user to fill.
-        new_prefix = current_pt.get("coil_prefix", "")
-        if new_prefix:
-            st.text_input(
-                "Coil/Item Prefix (fixed)",
-                value=new_prefix,
-                key=f"edit_prefix_{selected_edit_idx}",
-                disabled=True,
+        col_a, col_b = st.columns(2)
+        with col_a:
+            new_val = st.number_input(
+                "Oxygen Value (ppm)",
+                value=int(round(float(current_pt["val"]))),
+                step=1,
+                format="%d",
             )
-            new_num = st.text_input(
-                "Coil/Item Number",
-                value=current_pt.get("coil_num", ""),
-                key=f"edit_num_{selected_edit_idx}",
-            )
-        else:
-            new_num = ""
 
-    if st.button("Submit & Save Reading", type="primary"):
-        now_str = get_pkt_time()
+        with col_b:
+            # Coil prefix is constant per station (CR/TUN/SF/HF) - only the
+            # number is editable; it starts empty for the user to fill.
+            new_prefix = current_pt.get("coil_prefix", "")
+            if new_prefix:
+                st.text_input(
+                    "Coil/Item Prefix (fixed)",
+                    value=new_prefix,
+                    key=f"edit_prefix_{selected_edit_idx}",
+                    disabled=True,
+                )
+                new_num = st.text_input(
+                    "Coil/Item Number",
+                    value=current_pt.get("coil_num", ""),
+                    key=f"edit_num_{selected_edit_idx}",
+                )
+            else:
+                new_num = ""
 
-        store["monitoring_points"][selected_edit_idx]["val"] = new_val
-        store["monitoring_points"][selected_edit_idx][
-            "coil_prefix"
-        ] = new_prefix
-        store["monitoring_points"][selected_edit_idx]["coil_num"] = new_num
-        store["monitoring_points"][selected_edit_idx]["last_updated"] = now_str
+        if st.button("Submit & Save Reading", type="primary"):
+            now_str = get_pkt_time()
 
-        st.session_state.muted_stations[current_pt["name"]] = False
+            store["monitoring_points"][selected_edit_idx]["val"] = new_val
+            store["monitoring_points"][selected_edit_idx][
+                "coil_prefix"
+            ] = new_prefix
+            store["monitoring_points"][selected_edit_idx]["coil_num"] = new_num
+            store["monitoring_points"][selected_edit_idx]["last_updated"] = now_str
 
-        new_log = {
-            "Time": now_str,
-            "Station": current_pt["name"],
-            "Coil": (
-                f"{new_prefix}-{new_num}"
-                if new_num and new_prefix
-                else "N/A"
-            ),
-            "Value": new_val,
-            "User": st.session_state.username,
-            "Shift": st.session_state.duty_shift,
-        }
+            st.session_state.muted_stations[current_pt["name"]] = False
 
-        store["log_history"].append(new_log)
-        save_store()
+            new_log = {
+                "Time": now_str,
+                "Station": current_pt["name"],
+                "Coil": (
+                    f"{new_prefix}-{new_num}"
+                    if new_num and new_prefix
+                    else "N/A"
+                ),
+                "Value": new_val,
+                "User": st.session_state.username,
+                "Shift": st.session_state.duty_shift,
+            }
 
-        sheets_ok = save_to_google_sheet(new_log, store.get("google_sheet_url", ""))
+            store["log_history"].append(new_log)
+            save_store()
 
-        # NOTE: st.success must NOT be called right before st.rerun() -
-        # the rerun discards it, so the user never sees the confirmation.
-        # Store it in session state and show it after the rerun instead.
-        msg = f"Reading updated successfully at {now_str}!"
-        if sheets_autosave_on(store.get("google_sheet_url", "")) and not sheets_ok:
-            msg += " (Note: Google Sheets save failed - saved locally only.)"
-        st.session_state["reading_saved_msg"] = msg
-        st.rerun()
+            sheets_ok = save_to_google_sheet(new_log, store.get("google_sheet_url", ""))
 
-# Tab 2: Log History (Both Admin and Operator)
-with tabs_op[1]:
+            # NOTE: st.success must NOT be called right before st.rerun() -
+            # the rerun discards it, so the user never sees the confirmation.
+            # Store it in session state and show it after the rerun instead.
+            msg = f"Reading updated successfully at {now_str}!"
+            if sheets_autosave_on(store.get("google_sheet_url", "")) and not sheets_ok:
+                msg += " (Note: Google Sheets save failed - saved locally only.)"
+            st.session_state["reading_saved_msg"] = msg
+            st.rerun()
+
+# Tab: Log History (public - everyone can view)
+with _tab_by_name["📊 Log History"]:
     st.subheader("📊 Log History & Saved Records")
 
     if sheets_autosave_on(store.get("google_sheet_url", "")):
@@ -870,10 +936,38 @@ with tabs_op[1]:
     else:
         st.info("No logs recorded yet.")
 
-# Admin Only Tabs
-if is_admin:
-    # Sound Settings
-    with tabs_op[2]:
+# Limits tab (admin + main admin: readings + oxygen parameters)
+if _can("limits"):
+    with _tab_by_name["⚙️ Admin: Manage Limits"]:
+        st.subheader("⚙️ Admin Panel - Manage Limits")
+        for idx, pt in enumerate(store["monitoring_points"]):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.write(f"**{pt['name']}**")
+            with col2:
+                new_min = st.number_input(
+                    f"Min Limit ({pt['name']})",
+                    value=float(pt.get("min_limit", 100.0)),
+                    key=f"min_{idx}",
+                )
+            with col3:
+                new_max = st.number_input(
+                    f"Max Limit ({pt['name']})",
+                    value=float(pt.get("max_limit", 350.0)),
+                    key=f"max_{idx}",
+                )
+
+            store["monitoring_points"][idx]["min_limit"] = new_min
+            store["monitoring_points"][idx]["max_limit"] = new_max
+        if st.button("Save All Limits"):
+            save_store()
+            st.success("Limits updated successfully!")
+            st.rerun()
+
+
+# Main admin tabs (him only)
+if _is_main:
+    with _tab_by_name["🔊 Alarm Sound Settings"]:
         st.subheader("🔊 Select Loud Alarm Sound")
         sound_options = list(sound_scripts.keys())
         current_selected = store.get(
@@ -908,42 +1002,18 @@ if is_admin:
                 st.success(f"Alarm sound set to: {chosen_sound}")
                 st.rerun()
 
-    # Manage Limits
-    with tabs_op[3]:
-        st.subheader("⚙️ Admin Panel - Manage Limits")
-        for idx, pt in enumerate(store["monitoring_points"]):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.write(f"**{pt['name']}**")
-            with col2:
-                new_min = st.number_input(
-                    f"Min Limit ({pt['name']})",
-                    value=float(pt.get("min_limit", 100.0)),
-                    key=f"min_{idx}",
-                )
-            with col3:
-                new_max = st.number_input(
-                    f"Max Limit ({pt['name']})",
-                    value=float(pt.get("max_limit", 350.0)),
-                    key=f"max_{idx}",
-                )
-
-            store["monitoring_points"][idx]["min_limit"] = new_min
-            store["monitoring_points"][idx]["max_limit"] = new_max
-        if st.button("Save All Limits"):
-            save_store()
-            st.success("Limits updated successfully!")
-            st.rerun()
-
-    # User Management
-    with tabs_op[4]:
+    with _tab_by_name["👥 User Management"]:
         st.subheader("👥 User Management & Create New User")
         with st.form("create_user_form"):
             st.markdown("#### Add New System User")
             new_username = st.text_input("New Username")
             new_name = st.text_input("Full Name")
             new_password = st.text_input("Password", type="password")
-            new_role = st.selectbox("Role", ["operator", "admin"])
+            new_role = st.selectbox(
+                "Role",
+                ["user", "admin"],
+                help="admin = readings + oxygen parameters; user = readings only",
+            )
 
             submit_user = st.form_submit_button("Create User")
             if submit_user:
