@@ -614,7 +614,7 @@ if st.session_state.get("fs_station"):
                 f"{fmt_v(_l.get('Value', '?'))} @ {_l.get('Time', '')}"
                 for _l in _fl2
             )
-            fs_last = f'<div style="font-size:22px;color:#c7d2e4;margin-top:4px;">⏱ Last: {_fltxt}</div>'
+            fs_last = f'<div style="font-size:30px;color:#c7d2e4;margin-top:6px;">⏱ Last: {_fltxt}</div>'
         # NOTE: single-line HTML (no blank lines / indentation) so the markdown
         # renderer never treats the value divs as a code block.
         fs_html = (
@@ -626,7 +626,7 @@ if st.session_state.get("fs_station"):
             f'<div style="font-size:20vw;line-height:1;color:{fs_color};font-weight:900;">{fs_val:.0f}</div>'
             f'<div style="font-size:60px;color:{fs_color};font-weight:800;">ppm</div>'
             f'<div style="font-size:30px;color:#e5e7eb;margin-top:6px;">{fs_status}</div>'
-            f'<div style="font-size:20px;color:#9ca3af;margin-top:4px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
+            f'<div style="font-size:26px;color:#9ca3af;margin-top:6px;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
             f"{fs_last}"
             "</div>"
         )
@@ -645,13 +645,13 @@ if st.session_state.get("fs_station"):
                 _pp, _nn = _op.get("coil_prefix", ""), _op.get("coil_num", "")
                 _coiltxt = ""
                 if _pp or _nn:
-                    _coiltxt = f"<div style='font-size:16px;color:#7dd3fc;font-weight:700;'>{_pp}-{_nn if _nn else '___'}</div>"
+                    _coiltxt = f"<div style='font-size:20px;color:#7dd3fc;font-weight:700;'>{_pp}-{_nn if _nn else '___'}</div>"
                 st.markdown(
-                    "<div style='background:" + _obg + ";border:2px solid " + _ocol + ";border-radius:12px;padding:8px 4px;text-align:center;'>"
-                    + "<div style='font-size:22px;font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
+                    "<div style='background:" + _obg + ";border:3px solid " + _ocol + ";border-radius:16px;padding:14px 8px;text-align:center;'>"
+                    + "<div style='font-size:28px;font-weight:800;color:#ffffff;'>" + _op["name"] + "</div>"
                     + _coiltxt
-                    + "<div style='font-size:44px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.0f}" + "</div>"
-                    + "<div style='font-size:16px;color:" + _ocol + ";font-weight:700;'>ppm</div></div>",
+                    + "<div style='font-size:62px;font-weight:900;color:" + _ocol + ";line-height:1.1;'>" + f"{_ov:.0f}" + "</div>"
+                    + "<div style='font-size:20px;color:" + _ocol + ";font-weight:700;'>ppm</div></div>",
                     unsafe_allow_html=True,
                 )
                 if st.button(f"⛶ {_op['name']}", key=f"fs_sw_{_op['name']}", use_container_width=True):
@@ -868,8 +868,9 @@ with _tab_by_name["⚡ Update Readings"]:
                 )
                 new_num = st.text_input(
                     "Coil/Item Number",
-                    value=current_pt.get("coil_num", ""),
+                    value="",
                     key=f"edit_num_{selected_edit_idx}",
+                    placeholder="e.g. 9653",
                 )
             else:
                 new_num = ""
@@ -910,6 +911,9 @@ with _tab_by_name["⚡ Update Readings"]:
             msg = f"Reading updated successfully at {now_str}!"
             if sheets_autosave_on(store.get("google_sheet_url", "")) and not sheets_ok:
                 msg += " (Note: Google Sheets save failed - saved locally only.)"
+            # Clear the coil number field so the next entry starts empty
+            # (stored coil on the card still shows the last entered coil).
+            st.session_state.pop(f"edit_num_{selected_edit_idx}", None)
             st.session_state["reading_saved_msg"] = msg
             st.rerun()
 
