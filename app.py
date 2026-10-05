@@ -1069,6 +1069,24 @@ if _is_main:
             ]
         )
 
+        st.markdown("---")
+        st.markdown("#### 🗑 Delete User")
+        _del_names = [
+            u
+            for u in sorted(store["user_db"].keys())
+            if u != st.session_state.username
+        ]
+        if not _del_names:
+            st.info("Delete karne ke liye koi aur user nahi hai.")
+        else:
+            with st.form("delete_user_form", clear_on_submit=True):
+                _du = st.selectbox("Select User", _del_names)
+                if st.form_submit_button("Delete User"):
+                    store["user_db"].pop(_du, None)
+                    save_store()
+                    st.success(f"'{_du}' delete ho gaya!")
+                    st.rerun()
+
 # Tab: Change Password (self-service for any logged-in role:
 # user, admin, main_admin)
 if "🔑 Change Password" in _tab_by_name:
