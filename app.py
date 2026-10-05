@@ -625,7 +625,7 @@ if st.session_state.get("fs_station"):
             f"{fs_logo}"
             f'<div style="font-size:min(5vw,4.2vh);font-weight:800;color:#ffffff;margin-bottom:0.3vh;">{fs_name}</div>'
             f"{fs_coil}"
-            f'<div style="font-size:min(20vw,26vh);line-height:1;color:{fs_color};font-weight:900;">{fs_val:.0f}</div>'
+            f'<div style="font-size:min(20vw,34vh);line-height:1;color:{fs_color};font-weight:900;">{fs_val:.0f}</div>'
             f'<div style="font-size:min(5.5vw,5vh);color:{fs_color};font-weight:800;">ppm</div>'
             f'<div style="font-size:min(3.2vw,2.8vh);color:#e5e7eb;margin-top:0.8vh;">{fs_status}</div>'
             f'<div style="font-size:min(3.5vw,3.2vh);color:#9ca3af;margin-top:0.5vh;">Last Updated: {fs_pt.get("last_updated", get_pkt_time())}</div>'
