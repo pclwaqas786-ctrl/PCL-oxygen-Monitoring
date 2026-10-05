@@ -826,6 +826,8 @@ st.markdown("### 📝 Operations Panel")
 
 # Role Based Tab Generation
 op_tabs_list = ["⚡ Update Readings", "📊 Log History"]
+if st.session_state.logged_in:
+    op_tabs_list.append("🔑 Change Password")
 if _can("limits"):
     op_tabs_list.append("⚙️ Admin: Manage Limits")
 if _is_main:
@@ -1040,3 +1042,54 @@ if _is_main:
                             f"User '{new_username}' successfully created!"
                         )
                         st.rerun()
+
+        st.markdown("---")
+        st.markdown("#### 🔄 Reset User Password")
+        _reset_names = sorted(store["user_db"].keys())
+        with st.form("reset_pw_form", clear_on_submit=True):
+            _ru = st.selectbox("Select User", _reset_names)
+            _rpw = st.text_input("New Password", type="password")
+            if st.form_submit_button("Reset Password", type="primary"):
+                if len(_rpw) < 4:
+                    st.error("Password kam az kam 4 characters ka ho.")
+                else:
+                    store["user_db"][_ru]["pass"] = _rpw
+                    save_store()
+                    st.success(f"'{_ru}' ka password reset ho gaya!")
+
+        st.markdown("#### 👥 Existing Users")
+        st.table(
+            [
+                {
+                    "Username": _un,
+                    "Name": _ud.get("name", ""),
+                    "Role": _ud.get("role", ""),
+                }
+                for _un, _ud in sorted(store["user_db"].items())
+            ]
+        )
+
+# Tab: Change Password (self-service for any logged-in role:
+# user, admin, main_admin)
+if "🔑 Change Password" in _tab_by_name:
+    with _tab_by_name["🔑 Change Password"]:
+        st.subheader("🔑 Change Password")
+        st.caption(f"Logged in as **{st.session_state.username}**")
+        with st.form("change_pw_form", clear_on_submit=True):
+            _cur = st.text_input("Current Password", type="password")
+            _np1 = st.text_input("New Password", type="password")
+            _np2 = st.text_input("Confirm New Password", type="password")
+            if st.form_submit_button("Change Password", type="primary"):
+                _me = st.session_state.username
+                if _me not in store["user_db"]:
+                    st.error("User not found.")
+                elif store["user_db"][_me]["pass"] != _cur:
+                    st.error("Current password galat hai.")
+                elif len(_np1) < 4:
+                    st.error("New password kam az kam 4 characters ka ho.")
+                elif _np1 != _np2:
+                    st.error("New passwords match nahi kar rahe.")
+                else:
+                    store["user_db"][_me]["pass"] = _np1
+                    save_store()
+                    st.success("Password change ho gaya!")
