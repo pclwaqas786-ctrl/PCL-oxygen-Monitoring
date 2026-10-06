@@ -45,13 +45,15 @@ default_store = {
     "schema_version": 2,
     "user_db": {
         "admin": {
-            "pass": "waqas123@",
+            # Live password lives in the server's store_data.json — never commit a real password here.
+            "pass": "SET_VIA_APP_AFTER_INSTALL",
             "name": "Admin Manager",
             "role": "main_admin",
             "email": "admin@pcable.com",
         },
         "shoaib.sheikh": {
-            "pass": "123456",
+            # Stale test account (deleted from the live app 6 Oct 2026) — login disabled.
+            "pass": "DISABLED_ACCOUNT",
             "name": "Shoaib Sheikh",
             "role": "user",
             "email": "shoaib@pcable.com",
@@ -233,9 +235,8 @@ if store.get("schema_version", 2) < 3:
         if _nm == "ROD":
             _pt["min_limit"] = 100.0
             _pt["max_limit"] = 650.0
-    _users = store.get("user_db", {})
-    if "admin" in _users:
-        _users["admin"]["pass"] = "waqas123@"
+    # NOTE (6 Oct 2026): the old v3 line that wrote a plaintext admin password here was
+    # removed — real passwords must never live in code. Live password is in store_data.json.
     store["schema_version"] = 3
     save_store()
 
